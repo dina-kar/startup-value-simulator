@@ -48,20 +48,10 @@ const sidebarItems: SidebarItem[] = [
     href: '/scenarios'
   },
   {
-    id: 'analytics',
-    label: 'Analytics',
+    id: 'compare',
+    label: 'Scenario Compare',
     icon: TrendingUpIcon,
-    href: '/analytics',
-    disabled: true,
-    badge: 'Soon'
-  },
-  {
-    id: 'team',
-    label: 'Team',
-    icon: UsersIcon,
-    href: '/team',
-    disabled: true,
-    badge: 'Pro'
+    href: '/compare',
   }
 ]
 
@@ -80,6 +70,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ className }: AppSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isToggleHovered, setIsToggleHovered] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -106,19 +97,32 @@ export function AppSidebar({ className }: AppSidebarProps) {
             </span>
           </div>
         )}
-        
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 p-0"
-        >
-          {isCollapsed ? (
-            <ChevronRightIcon className="h-4 w-4" />
-          ) : (
+        {isCollapsed ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="h-8 w-8 p-0 flex items-center justify-center"
+            onMouseEnter={() => setIsToggleHovered(true)}
+            onMouseLeave={() => setIsToggleHovered(false)}
+            title={isToggleHovered ? 'Expand' : 'CapTable'}
+          >
+            {isToggleHovered ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <BarChart3Icon className="h-6 w-6 text-primary" />
+            )}
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="h-8 w-8 p-0"
+          >
             <ChevronLeftIcon className="h-4 w-4" />
-          )}
-        </Button>
+          </Button>
+        )}
       </div>
 
       {/* Create New Button */}
