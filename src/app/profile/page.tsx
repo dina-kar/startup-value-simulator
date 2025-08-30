@@ -233,7 +233,7 @@ export default function ProfilePage() {
       <AppLayout>
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Failed to load profile</p>
+            <p className="text-muted-foreground">Loading profile</p>
           </div>
         </div>
       </AppLayout>
