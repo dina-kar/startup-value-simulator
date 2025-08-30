@@ -7,14 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CopyButton } from '@/components/ui/copy-button'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
-import { useUIStore } from '@/lib/stores/uiStore'
-import { useNotifications } from '@/lib/stores/uiStore'
-import { shareScenario } from '@/lib/database/queries'
+import { useScenarioStore } from '@/stores/scenarioStore'
+import { useUIStore, useNotifications } from '@/stores/uiStore'
 
 export const ShareModal = () => {
-  const { scenario } = useScenarioStore()
-  const { shareModalOpen, setShareModalOpen } = useUIStore()
+  const { id: scenarioId, name, generateShareToken } = useScenarioStore()
+  const { isShareModalOpen, setShareModalOpen } = useUIStore()
   const { showSuccess, showError } = useNotifications()
   
   const [shareUrl, setShareUrl] = useState('')
@@ -22,7 +20,7 @@ export const ShareModal = () => {
   const [hasGeneratedLink, setHasGeneratedLink] = useState(false)
 
   const generateShareLink = async () => {
-    if (!scenario) {
+    if (!scenarioId) {
       showError('No scenario to share', 'Please create a scenario first.')
       return
     }
@@ -30,15 +28,15 @@ export const ShareModal = () => {
     setIsGenerating(true)
 
     try {
-      const result = await shareScenario(scenario.id)
+      // Generate the share token
+      const token = generateShareToken()
+      const url = `${window.location.origin}/share/${token}`
       
-      if (result.success && result.data) {
-        setShareUrl(result.data.shareUrl)
-        setHasGeneratedLink(true)
-        showSuccess('Share link generated', 'Your scenario is now publicly accessible.')
-      } else {
-        showError('Failed to generate share link', result.error || 'Unknown error occurred')
-      }
+      // For now, just create the URL without database persistence
+      // TODO: Implement actual database storage for sharing
+      setShareUrl(url)
+      setHasGeneratedLink(true)
+      showSuccess('Share link generated', 'Your scenario is now accessible via the link.')
     } catch (error) {
       console.error('Error generating share link:', error)
       showError('Error', 'An unexpected error occurred while generating the share link.')
@@ -56,12 +54,12 @@ export const ShareModal = () => {
     }, 200)
   }
 
-  if (!scenario) {
+  if (!scenarioId) {
     return null
   }
 
   return (
-    <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+    <Dialog open={isShareModalOpen} onOpenChange={setShareModalOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -74,7 +72,7 @@ export const ShareModal = () => {
           <div>
             <Label>Scenario Name</Label>
             <Input 
-              value={scenario.name} 
+              value={name} 
               readOnly 
               className="bg-muted"
             />

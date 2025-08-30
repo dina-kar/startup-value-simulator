@@ -77,30 +77,37 @@ export class CalculationEngine {
   }
 
   /**
-   * Calculate a priced equity round
+   * Calculate a priced equity round with ESOP adjustments
    */
   private calculatePricedRound(round: Round, preRoundShares: number): RoundResult {
     if (!round.preMoney || round.preMoney <= 0) {
       throw new Error(`${round.name} must have valid pre-money valuation`)
     }
     
+    let workingShares = preRoundShares
     const preMoney = round.preMoney
-    const investment = round.amount
-    const postMoney = preMoney + investment
     
-    const sharePrice = preMoney / preRoundShares
-    const sharesIssued = investment / sharePrice
-    const totalShares = preRoundShares + sharesIssued
+    // Handle ESOP adjustments BEFORE pricing (pre-money)
+    if (round.esopAdjustment?.expand && round.esopAdjustment.isPreMoney) {
+      const result = this.handleESOPAdjustment(round, workingShares, preMoney, true)
+      workingShares = result.newTotalShares
+      // Pre-money valuation stays the same, but effective share price changes
+    }
     
+    const sharePrice = preMoney / workingShares
+    const sharesIssued = round.amount / sharePrice
+    let totalShares = workingShares + sharesIssued
+    
+    // Handle ESOP adjustments AFTER pricing (post-money)
+    if (round.esopAdjustment?.expand && !round.esopAdjustment.isPreMoney) {
+      const result = this.handleESOPAdjustment(round, totalShares, preMoney + round.amount, false)
+      totalShares = result.newTotalShares
+    }
+    
+    const postMoney = preMoney + round.amount
     const dilution = (sharesIssued / totalShares) * 100
 
-    // Handle ESOP pool adjustments if specified
-    const adjustedTotalShares = totalShares
-    if (round.esopAdjustment?.expand) {
-      // TODO: Implement ESOP pool expansion logic
-    }
-
-    const ownership = this.calculateRoundOwnership(round, adjustedTotalShares, sharesIssued)
+    const ownership = this.calculateRoundOwnership(round, totalShares, sharesIssued)
 
     return {
       roundId: round.id,
@@ -108,23 +115,53 @@ export class CalculationEngine {
       postMoney,
       sharePrice,
       sharesIssued,
-      totalShares: adjustedTotalShares,
+      totalShares,
       dilution,
       ownership
     }
   }
 
   /**
-   * Calculate a SAFE conversion (simplified - assumes conversion at next round)
+   * Handle ESOP pool creation or expansion
+   */
+  private handleESOPAdjustment(
+    round: Round,
+    currentShares: number,
+    _valuation: number,
+    isPreMoney: boolean
+  ): { newTotalShares: number; esopShares: number } {
+    if (!round.esopAdjustment?.newPoolSize) {
+      return { newTotalShares: currentShares, esopShares: 0 }
+    }
+
+    const targetPoolPercent = round.esopAdjustment.newPoolSize
+    
+    if (isPreMoney) {
+      // Pre-money ESOP expansion dilutes existing shareholders proportionally
+      // Target: ESOP = targetPoolPercent% of post-adjustment shares
+      // newShares = currentShares / (1 - targetPoolPercent/100)
+      const newTotalShares = currentShares / (1 - targetPoolPercent / 100)
+      const esopShares = newTotalShares - currentShares
+      
+      return { newTotalShares, esopShares }
+    } else {
+      // Post-money ESOP expansion: add shares to reach target percentage
+      // Target: ESOP = targetPoolPercent% of final shares
+      const newTotalShares = currentShares / (1 - targetPoolPercent / 100)
+      const esopShares = newTotalShares - currentShares
+      
+      return { newTotalShares, esopShares }
+    }
+  }
+
+  /**
+   * Calculate a SAFE conversion with proper cap and discount logic
    */
   private calculateSAFERound(
     round: Round, 
     preRoundShares: number, 
     _previousRounds: RoundResult[]
   ): RoundResult {
-    // For now, treat SAFE as a note that will convert in the next priced round
-    // This is a simplified implementation
-    
     if (!round.valuationCap || round.valuationCap <= 0) {
       throw new Error(`${round.name} must have valid valuation cap`)
     }
@@ -133,22 +170,92 @@ export class CalculationEngine {
     const investment = round.amount
     const discount = round.discount || 0
     
-    // Estimate conversion assuming cap is hit
-    const sharePrice = valuationCap / preRoundShares
-    const effectivePrice = sharePrice * (1 - discount / 100)
-    const sharesIssued = investment / effectivePrice
+    // Check if this is converting in a priced round
+    const nextPricedRound = this.findNextPricedRound(round)
     
-    const totalShares = preRoundShares + sharesIssued
-    const dilution = (sharesIssued / totalShares) * 100
+    if (nextPricedRound) {
+      // SAFE converts at the better of cap price or discounted price
+      return this.calculateSAFEConversion(round, nextPricedRound, preRoundShares)
+    } else {
+      // Standalone SAFE - estimate using cap
+      const capPrice = valuationCap / preRoundShares
+      const discountedPrice = discount > 0 ? capPrice * (1 - discount / 100) : capPrice
+      const conversionPrice = Math.min(capPrice, discountedPrice)
+      const sharesIssued = investment / conversionPrice
+      
+      const totalShares = preRoundShares + sharesIssued
+      const dilution = (sharesIssued / totalShares) * 100
+      
+      const ownership = this.calculateRoundOwnership(round, totalShares, sharesIssued)
+
+      return {
+        roundId: round.id,
+        preMoney: valuationCap,
+        postMoney: valuationCap + investment,
+        sharePrice: conversionPrice,
+        sharesIssued,
+        totalShares,
+        dilution,
+        ownership
+      }
+    }
+  }
+
+  /**
+   * Find the next priced round for SAFE conversion
+   */
+  private findNextPricedRound(safeRound: Round): Round | null {
+    const sortedRounds = [...this.scenario.rounds].sort((a, b) => a.order - b.order)
+    const safeIndex = sortedRounds.findIndex(r => r.id === safeRound.id)
     
-    const ownership = this.calculateRoundOwnership(round, totalShares, sharesIssued)
+    for (let i = safeIndex + 1; i < sortedRounds.length; i++) {
+      if (sortedRounds[i].type === 'Priced') {
+        return sortedRounds[i]
+      }
+    }
+    
+    return null
+  }
+
+  /**
+   * Calculate SAFE conversion into a priced round
+   */
+  private calculateSAFEConversion(
+    safeRound: Round,
+    pricedRound: Round,
+    preConversionShares: number
+  ): RoundResult {
+    if (!safeRound.valuationCap || !pricedRound.preMoney) {
+      throw new Error('Invalid SAFE or priced round parameters')
+    }
+
+    // Calculate priced round share price
+    const pricedRoundPrice = pricedRound.preMoney / preConversionShares
+    
+    // Calculate SAFE conversion price (better of cap or discount)
+    const capPrice = safeRound.valuationCap / preConversionShares
+    const discountedPrice = safeRound.discount 
+      ? pricedRoundPrice * (1 - safeRound.discount / 100)
+      : Infinity
+    
+    const conversionPrice = Math.min(capPrice, discountedPrice)
+    const safeShares = safeRound.amount / conversionPrice
+    
+    // Calculate priced round shares
+    const pricedShares = pricedRound.amount / pricedRoundPrice
+    
+    const totalNewShares = safeShares + pricedShares
+    const totalShares = preConversionShares + totalNewShares
+    const dilution = (totalNewShares / totalShares) * 100
+
+    const ownership = this.calculateRoundOwnership(pricedRound, totalShares, totalNewShares)
 
     return {
-      roundId: round.id,
-      preMoney: valuationCap,
-      postMoney: valuationCap + investment,
-      sharePrice: effectivePrice,
-      sharesIssued,
+      roundId: pricedRound.id,
+      preMoney: pricedRound.preMoney,
+      postMoney: pricedRound.preMoney + pricedRound.amount + safeRound.amount,
+      sharePrice: pricedRoundPrice,
+      sharesIssued: totalNewShares,
       totalShares,
       dilution,
       ownership

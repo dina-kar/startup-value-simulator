@@ -39,12 +39,38 @@ export interface Round {
     isPreMoney?: boolean
   }
   
+  // Secondary sales
+  secondaryConfig?: SecondaryConfiguration
+  
   // Calculated values
   sharesIssued?: number
   newShares?: number
   
   createdAt: Date
   order: number
+}
+
+export interface SecondaryTransaction {
+  id: string
+  founderId: string
+  founderName: string
+  sharesOrPercent: number
+  isPercentage: boolean
+  pricePerShare: number
+  totalValue: number
+}
+
+export interface SecondaryConfiguration {
+  enabled: boolean
+  transactions: SecondaryTransaction[]
+  timing: 'before' | 'after' // Before or after primary investment
+}
+
+export interface SecondaryRoundResult {
+  transactions: SecondaryTransaction[]
+  totalSecondaryValue: number
+  averagePrice: number
+  impactOnOwnership: Record<string, number> // founder ID -> new ownership %
 }
 
 export interface Scenario {

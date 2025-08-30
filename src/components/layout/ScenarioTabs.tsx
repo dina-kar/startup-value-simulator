@@ -1,7 +1,7 @@
 'use client'
 
 import { useUIStore } from '@/lib/stores/uiStore'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CheckCircle2, Circle, AlertCircle } from 'lucide-react'
 

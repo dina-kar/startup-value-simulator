@@ -1,6 +1,6 @@
 'use client'
 
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import {
   Table,
   TableBody,

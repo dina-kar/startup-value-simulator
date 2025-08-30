@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart-simple'
 
 interface OwnershipChartProps {

@@ -1,7 +1,7 @@
 'use client';
 
-import { CloudIcon, CloudCheckIcon, CloudUploadIcon, AlertCircleIcon } from 'lucide-react'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { CloudIcon, CloudCheckIcon, CloudUploadIcon } from 'lucide-react'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status'
 import { cn } from '@/lib/utils'
 
@@ -12,13 +12,12 @@ interface SaveStatusProps {
 
 export const SaveStatus = ({ className, showText = true }: SaveStatusProps) => {
   const { 
-    hasUnsavedChanges, 
     isSaving, 
-    lastSaved, 
-    scenario 
+    lastSavedAt, 
+    name 
   } = useScenarioStore()
 
-  if (!scenario) {
+  if (!name) {
     return null
   }
 
@@ -32,17 +31,8 @@ export const SaveStatus = ({ className, showText = true }: SaveStatusProps) => {
       }
     }
 
-    if (hasUnsavedChanges) {
-      return {
-        status: 'degraded' as const,
-        icon: AlertCircleIcon,
-        text: 'Unsaved changes',
-        color: 'text-amber-600'
-      }
-    }
-
-    if (lastSaved) {
-      const timeSince = Date.now() - lastSaved.getTime()
+    if (lastSavedAt) {
+      const timeSince = Date.now() - lastSavedAt.getTime()
       const minutesAgo = Math.floor(timeSince / (1000 * 60))
       
       return {

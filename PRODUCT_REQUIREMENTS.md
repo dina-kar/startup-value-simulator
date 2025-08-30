@@ -52,7 +52,7 @@ Founders lack an intuitive, reliable, interactive way to model ownership changes
 ## 7. Technical Stack (Chosen / Suggested)
 - Next.js (App Router) + TypeScript.
 - State: Zustand (already present) for scenario store; consider derived selectors for computed metrics.
-- DB: Supabase (auth + persistence) — fallback localStorage for unauth’d draft.
+- DB: Supabase (auth + persistence)
 - UI: MVPBlocks-inspired component primitives (hero, feature grid, forms, audit drawer, charts) + Tailwind.
 - Charts: Recharts (present) or upgrade selection if needed for stacked area / waterfall.
 - Auth: Supabase Auth (already integrated).

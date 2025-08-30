@@ -1,6 +1,6 @@
 'use client'
 
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { CapTableTable } from '@/components/charts/CapTableTable'
 import { OwnershipChart } from '@/components/charts/OwnershipChart'
 import { ExitWaterfallChart } from '@/components/charts/ExitWaterfallChart'

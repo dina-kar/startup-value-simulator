@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { Button } from '@/components/ui/button'
 import { Plus, Edit, Trash2, DollarSign } from 'lucide-react'
 import { RoundConfigForm } from '@/components/forms/RoundConfigForm'

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SaveStatus } from '@/components/ui/save-status'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
+import { useScenarioStore } from '@/stores/scenarioStore'
 import { useUIStore } from '@/lib/stores/uiStore'
 import { useAutoSave } from '@/lib/hooks/useAutoSave'
 import { useNotifications } from '@/lib/stores/uiStore'
@@ -19,43 +19,35 @@ interface AppHeaderProps {
 
 export const AppHeader = ({ className }: AppHeaderProps) => {
   const { 
-    scenario, 
+    name, 
     isSaving,
-    saveCurrentScenario,
-    setScenario 
+    updateScenarioMeta 
   } = useScenarioStore()
   
   const { setShareModalOpen } = useUIStore()
   const { showSuccess, showError } = useNotifications()
   const { manualSave } = useAutoSave({ enabled: true })
-  const { user } = useAuth()
   
   const [isEditingName, setIsEditingName] = useState(false)
   const [tempName, setTempName] = useState('')
 
   const handleNameEdit = () => {
-    if (!scenario) return
-    setTempName(scenario.name)
+    if (!name) return
+    setTempName(name)
     setIsEditingName(true)
   }
 
   const handleNameSave = async () => {
-    if (!scenario || !tempName.trim()) {
+    if (!name || !tempName.trim()) {
       setIsEditingName(false)
       return
     }
 
-    const updatedScenario = {
-      ...scenario,
-      name: tempName.trim(),
-      updatedAt: new Date()
-    }
-
-    setScenario(updatedScenario)
+    updateScenarioMeta({ name: tempName.trim() })
     setIsEditingName(false)
     
     // Auto-save the name change
-    const success = await saveCurrentScenario()
+    const success = await manualSave()
     if (success) {
       showSuccess('Scenario name updated')
     } else {
@@ -74,14 +66,14 @@ export const AppHeader = ({ className }: AppHeaderProps) => {
   }
 
   const handleShare = () => {
-    if (!scenario) {
+    if (!name) {
       showError('No scenario to share', 'Please create a scenario first.')
       return
     }
     setShareModalOpen(true)
   }
 
-  if (!scenario) {
+  if (!name) {
     return (
       <header className={cn(
         'flex items-center justify-between p-4 border-b bg-background',
@@ -140,7 +132,7 @@ export const AppHeader = ({ className }: AppHeaderProps) => {
             className="text-xl font-semibold text-left hover:bg-muted px-2 py-1 rounded transition-colors truncate"
             title="Click to edit name"
           >
-            {scenario.name}
+            {name}
           </button>
         )}
       </div>

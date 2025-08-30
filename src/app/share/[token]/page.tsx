@@ -9,8 +9,7 @@ import { ScenarioTabs } from '@/components/layout/ScenarioTabs'
 import { ScenarioSetupForm } from '@/components/forms/ScenarioSetupForm'
 import { RoundsManager } from '@/components/rounds/RoundsManager'
 import { ResultsView } from '@/components/results/ResultsView'
-import { useScenarioStore } from '@/lib/stores/scenarioStore'
-import { useUIStore } from '@/lib/stores/uiStore'
+import { useUIStore } from '@/stores/uiStore'
 import { loadSharedScenario } from '@/lib/database/queries'
 import type { Scenario } from '@/types/scenario'
 
@@ -18,8 +17,7 @@ export default function SharedScenarioPage() {
   const params = useParams()
   const token = params.token as string
   
-  const { setScenario, scenario } = useScenarioStore()
-  const { activeTab } = useUIStore()
+  const { activeScenarioTab } = useUIStore()
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +35,8 @@ export default function SharedScenarioPage() {
         
         if (result.success && result.data) {
           setSharedScenario(result.data)
-          setScenario(result.data)
+          // TODO: Load the shared scenario data into the store
+          // For now, we'll just display the shared scenario
         } else {
           setError(result.error || 'Failed to load scenario')
         }
@@ -50,7 +49,7 @@ export default function SharedScenarioPage() {
     }
 
     loadSharedScenarioData()
-  }, [token, setScenario])
+  }, [token])
 
   if (loading) {
     return (
@@ -92,7 +91,7 @@ export default function SharedScenarioPage() {
     )
   }
 
-  if (!scenario || !sharedScenario) {
+  if (!sharedScenario) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -111,7 +110,7 @@ export default function SharedScenarioPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">
-                {scenario.name}
+                {sharedScenario.name}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Shared scenario • Read-only view
@@ -149,7 +148,7 @@ export default function SharedScenarioPage() {
           <ScenarioTabs />
 
           <div className="mt-6">
-            {activeTab === 'setup' && (
+            {activeScenarioTab === 'setup' && (
               <div className="relative">
                 <div className="pointer-events-none opacity-75">
                   <ScenarioSetupForm />
@@ -165,7 +164,7 @@ export default function SharedScenarioPage() {
               </div>
             )}
             
-            {activeTab === 'rounds' && (
+            {activeScenarioTab === 'rounds' && (
               <div className="relative">
                 <div className="pointer-events-none opacity-75">
                   <RoundsManager />
@@ -181,7 +180,7 @@ export default function SharedScenarioPage() {
               </div>
             )}
             
-            {activeTab === 'results' && <ResultsView />}
+            {activeScenarioTab === 'results' && <ResultsView />}
           </div>
         </div>
       </div>
