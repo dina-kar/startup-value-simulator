@@ -248,8 +248,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Scenarios Table */}
-        {filteredScenarios.length === 0 ? (
+  {/* Scenarios Table */}
+  {filteredScenarios.length === 0 ? (
           <div className="text-center py-12">
             
             {!searchTerm && (
@@ -264,8 +264,9 @@ export default function DashboardPage() {
             )}
           </div>
         ) : (
-          <div className="border rounded-lg">
-            <Table>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Scenario Name</TableHead>
@@ -361,6 +362,7 @@ export default function DashboardPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
       </div>

@@ -1,8 +1,3 @@
--- Enable Row Level Security (RLS)
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE scenarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE shared_scenarios ENABLE ROW LEVEL SECURITY;
-
 -- Create user_profiles table
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

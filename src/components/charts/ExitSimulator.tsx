@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useCurrencyFormatter } from '@/lib/format/currency'
 import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,15 +34,12 @@ export function ExitSimulator({ className }: ExitSimulatorProps) {
     }))
   }, [currentValuation])
 
+  const format = useCurrencyFormatter()
   const formatCurrency = (value: number) => {
-    if (value >= 1_000_000_000) {
-      return `$${(value / 1_000_000_000).toFixed(1)}B`
-    } else if (value >= 1_000_000) {
-      return `$${(value / 1_000_000).toFixed(1)}M`
-    } else if (value >= 1_000) {
-      return `$${(value / 1_000).toFixed(1)}K`
-    }
-    return `$${value.toLocaleString()}`
+    if (value >= 1_000_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    return format(value)
   }
 
   const handlePresetClick = (value: number) => {

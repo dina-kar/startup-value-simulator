@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useCurrencyFormatter } from '@/lib/format/currency'
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
 import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart-simple'
@@ -66,13 +67,12 @@ export function ExitWaterfallChart({ className }: ExitWaterfallChartProps) {
     return config
   }, [chartData])
 
+  const format = useCurrencyFormatter()
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
+    if (value >= 1_000_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    return format(value)
   }
 
   const formatPercentage = (value: number) => {

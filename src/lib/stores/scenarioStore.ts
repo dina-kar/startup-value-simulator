@@ -126,17 +126,8 @@ export const useScenarioStore = create<ScenarioState>()(
           hasUnsavedChanges: true,
           lastSaved: null
         })
-        
-        // Automatically save the new scenario to the database
-        get().saveCurrentScenario().then(success => {
-          if (success) {
-            console.log('New scenario saved to database successfully')
-          } else {
-            console.error('Failed to save new scenario to database')
-          }
-        }).catch(error => {
-          console.error('Error saving new scenario:', error)
-        })
+  // Do NOT auto-save immediately; wait until user adds meaningful data
+  console.log('Initialized new scenario (not yet saved until it has data)')
       },
 
       clearScenario: () => {
@@ -181,6 +172,12 @@ export const useScenarioStore = create<ScenarioState>()(
         
         if (!state.scenario) {
           console.error('No scenario to save')
+          return false
+        }
+
+        // Prevent saving empty scenarios (no founders & no rounds)
+        if (state.founders.length === 0 && state.rounds.length === 0) {
+          console.log('Skipping save: scenario has no founders or rounds yet.')
           return false
         }
 

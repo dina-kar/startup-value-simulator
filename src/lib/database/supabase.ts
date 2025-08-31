@@ -64,10 +64,7 @@ export const handleSupabaseError = (error: unknown): { success: false; error: st
   
   // Handle case where error is empty object or null
   if (!error || (typeof error === 'object' && Object.keys(error).length === 0)) {
-    return {
-      success: false,
-      error: 'An unknown error occurred - please check your database connection and table setup'
-    }
+    return { success: false, error: 'Unknown database error' }
   }
   
   // Try to stringify the error for debugging

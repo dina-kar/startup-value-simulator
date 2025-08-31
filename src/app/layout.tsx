@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Startup Value Simulator",
+  title: "Fund Sim",
   description: "Model cap tables across funding rounds and see how much each founder would make at exit",
 };
 

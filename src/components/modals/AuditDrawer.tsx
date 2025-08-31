@@ -15,45 +15,18 @@ import {
 } from '@/components/ui/drawer'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, Calculator, X, AlertCircle, CheckCircle, Info } from 'lucide-react'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { FileText, Calculator, X, AlertCircle, CheckCircle, Info, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
 
 interface AuditDrawerProps {
   className?: string
 }
 
 export function AuditDrawer({ className }: AuditDrawerProps) {
-  const { calculations, founders, rounds, esop, validationErrors } = useScenarioStore()
+  const { calculations, validationErrors } = useScenarioStore()
   const { isAuditDrawerOpen, setAuditDrawerOpen } = useUIStore()
   
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
-
-  const formatNumber = (num: number, decimals = 2) => {
-    return num.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    })
-  }
-
-  const formatPercentage = (value: number) => {
-    return `${value.toFixed(2)}%`
-  }
-
-  const formatShares = (shares: number) => {
-    if (shares >= 1000000) {
-      return `${(shares / 1000000).toFixed(1)}M`
-    }
-    if (shares >= 1000) {
-      return `${(shares / 1000).toFixed(1)}K`
-    }
-    return shares.toFixed(0)
-  }
 
   return (
     <Drawer open={isAuditDrawerOpen} onOpenChange={setAuditDrawerOpen}>
@@ -103,15 +76,89 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                 </div>
               </div>
             ) : calculations ? (
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="rounds">Round Analysis</TabsTrigger>
-                  <TabsTrigger value="ownership">Ownership</TabsTrigger>
-                  <TabsTrigger value="assumptions">Assumptions</TabsTrigger>
-                </TabsList>
+              <AuditTabs />
+            ) : (
+              <div className="text-center py-8">
+                <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Calculations Available</h3>
+                <p className="text-gray-500">Add founders and funding rounds to see calculation details.</p>
+              </div>
+            )}
+          </div>
 
-                <TabsContent value="overview" className="space-y-6 max-h-[60vh] overflow-y-auto">
+          <DrawerFooter>
+            <DrawerClose asChild>
+              <Button variant="outline" className="w-full">
+                <X className="h-4 w-4 mr-2" />
+                Close Audit Trail
+              </Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
+function AuditTabs() {
+  const { calculations, founders, rounds, esop } = useScenarioStore()
+  const [active, setActive] = useState('overview')
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const formatPercentage = (value: number) => `${value.toFixed(2)}%`
+
+  const formatShares = (shares: number) => {
+    if (shares >= 1_000_000) return `${(shares / 1_000_000).toFixed(1)}M`
+    if (shares >= 1_000) return `${(shares / 1_000).toFixed(1)}K`
+    return shares.toFixed(0)
+  }
+
+  if (!calculations) return null
+
+  return (
+    <Tabs value={active} onValueChange={setActive} className="w-full">
+      {/* Mobile selector */}
+      <div className="sm:hidden mb-3">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full justify-between">
+              <span>{active === 'overview' ? 'Overview' : active === 'rounds' ? 'Round Analysis' : active === 'ownership' ? 'Ownership' : 'Assumptions'}</span>
+              <ChevronDown className="h-4 w-4 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-2" align="start">
+            <ul className="space-y-1 text-sm">
+              {['overview','rounds','ownership','assumptions'].map(v => (
+                <li key={v}>
+                  <button
+                    type="button"
+                    onClick={() => setActive(v)}
+                    className={`w-full text-left px-2 py-2 rounded-md hover:bg-muted ${active===v?'bg-muted font-medium':''}`}
+                  >
+                    {v === 'overview' ? 'Overview' : v === 'rounds' ? 'Round Analysis' : v === 'ownership' ? 'Ownership' : 'Assumptions'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      </div>
+      <TabsList className="hidden sm:grid w-full grid-cols-4">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="rounds">Round Analysis</TabsTrigger>
+        <TabsTrigger value="ownership">Ownership</TabsTrigger>
+        <TabsTrigger value="assumptions">Assumptions</TabsTrigger>
+      </TabsList>
+
+  <TabsContent value="overview" className="space-y-6 max-h-[60vh] overflow-y-auto data-[state=inactive]:hidden transition-opacity duration-300">
                   {/* Quick Summary */}
                   <section>
                     <h3 className="text-lg font-semibold mb-3">Scenario Summary</h3>
@@ -128,9 +175,7 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                       </div>
                       <div className="bg-purple-50 rounded-lg p-3">
                         <div className="text-sm text-purple-600">Total Shares</div>
-                        <div className="text-xl font-bold text-purple-900">
-                          {formatShares(calculations.totalShares)}
-                        </div>
+                        <div className="text-xl font-bold text-purple-900">{formatShares(calculations.totalShares)}</div>
                       </div>
                       <div className="bg-orange-50 rounded-lg p-3">
                         <div className="text-sm text-orange-600">ESOP Pool</div>
@@ -152,9 +197,7 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                                 <span className="font-medium">{founder.name}</span>
                                 <div className="text-right">
                                   <div className="font-semibold">{formatPercentage(founder.initialEquity)}</div>
-                                  <div className="text-xs text-gray-500">
-                                    {formatShares((founder.initialEquity / 100) * calculations.totalShares)} shares
-                                  </div>
+                                  <div className="text-xs text-gray-500">{formatShares((founder.initialEquity / 100) * calculations.totalShares)} shares</div>
                                 </div>
                               </div>
                             ))}
@@ -186,7 +229,7 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                   </section>
                 </TabsContent>
 
-                <TabsContent value="rounds" className="space-y-4 max-h-[60vh] overflow-y-auto">
+  <TabsContent value="rounds" className="space-y-4 max-h-[60vh] overflow-y-auto data-[state=inactive]:hidden transition-opacity duration-300">
                   {calculations.roundResults.map((result, index) => {
                     const round = rounds.find(r => r.id === result.roundId)
                     if (!round) return null
@@ -301,7 +344,7 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                   })}
                 </TabsContent>
 
-                <TabsContent value="ownership" className="space-y-4 max-h-[60vh] overflow-y-auto">
+  <TabsContent value="ownership" className="space-y-4 max-h-[60vh] overflow-y-auto data-[state=inactive]:hidden transition-opacity duration-300">
                   {/* Current Ownership */}
                   <section>
                     <h3 className="text-lg font-semibold mb-3">Current Ownership Distribution</h3>
@@ -357,7 +400,7 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                   )}
                 </TabsContent>
 
-                <TabsContent value="assumptions" className="space-y-4 max-h-[60vh] overflow-y-auto">
+  <TabsContent value="assumptions" className="space-y-4 max-h-[60vh] overflow-y-auto data-[state=inactive]:hidden transition-opacity duration-300">
                   <section>
                     <h3 className="text-lg font-semibold mb-3">Key Assumptions & Methodology</h3>
                     <div className="space-y-4">
@@ -406,26 +449,6 @@ export function AuditDrawer({ className }: AuditDrawerProps) {
                     </div>
                   </section>
                 </TabsContent>
-              </Tabs>
-            ) : (
-              <div className="text-center py-8">
-                <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Calculations Available</h3>
-                <p className="text-gray-500">Add founders and funding rounds to see calculation details.</p>
-              </div>
-            )}
-          </div>
-
-          <DrawerFooter>
-            <DrawerClose asChild>
-              <Button variant="outline" className="w-full">
-                <X className="h-4 w-4 mr-2" />
-                Close Audit Trail
-              </Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </div>
-      </DrawerContent>
-    </Drawer>
+    </Tabs>
   )
 }

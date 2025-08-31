@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { CardFlip } from "./CardFlip";
-import { ChartColumn } from "lucide-react";
+
 interface FeatureItem {
   icon: ReactNode;
   title: string;
@@ -18,17 +18,17 @@ interface FeatureGridProps {
 export function FeatureGrid({
   features = [
     {
-      icon: <span className="w-6 h-6"><ChartColumn /></span>,
-      title: "Cap Table Modeling",
-      desc: "Model multiple rounds & watch real-time dilution.",
+      icon: <span className="text-2xl"></span>,
+      title: "Cap Table",
+      desc: "Model multiple rounds watch real-time dilution.",
     },
     {
-      icon: <span className="text-3xl">💰</span>,
+      icon: <span className="text-3xl"></span>,
       title: "Exit Scenarios",
       desc: "Simulate exits & waterfall distributions instantly.",
     },
     {
-      icon: <span className="text-3xl">👥</span>,
+      icon: <span className="text-3xl"></span>,
       title: "Founder Focus",
       desc: "Purpose-built to explain equity & decision tradeoffs.",
     },

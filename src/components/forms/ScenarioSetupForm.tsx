@@ -88,7 +88,7 @@ export function ScenarioSetupForm() {
       {/* ESOP Configuration */}
       <div className="border rounded-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Employee Stock Option Pool (ESOP)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="esop-size">Pool Size (%)</Label>
             <Input
@@ -115,14 +115,63 @@ export function ScenarioSetupForm() {
             </p>
           </div>
           <div>
-            <Label className="text-sm font-medium">Pool Timing</Label>
-            <div className="mt-1 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-1">Pre-Money Pool (Create)</h4>
-              <p className="text-xs text-blue-700 mb-2">
+            <Label htmlFor="esop-allocated">Allocated (%)</Label>
+            <Input
+              id="esop-allocated"
+              type="text"
+              inputMode="decimal"
+              defaultValue={esop.allocated == null ? '' : String(esop.allocated)}
+              onBlur={(e) => {
+              const raw = e.target.value.trim()
+              if (raw === '') {
+                updateESOPConfig({ allocated: 0 })
+                return
+              }
+              const normalized = raw.startsWith('.') ? `0${raw}` : raw
+              const numValue = parseFloat(normalized)
+              if (!Number.isNaN(numValue)) {
+                updateESOPConfig({ allocated: numValue })
+              }
+              }}
+              placeholder="e.g., 5"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              How much of the pool has been granted to employees
+            </p>
+          </div>
+          <div>
+            <Label className="text-sm font-medium">Pool Summary</Label>
+            <div className="mt-1 p-3 bg-gray-50 border rounded-lg">
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Total Pool:</span>
+                  <span className="font-medium">{esop.poolSize}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Allocated:</span>
+                  <span className="font-medium">{esop.allocated}%</span>
+                </div>
+                <div className="flex justify-between border-t pt-1">
+                  <span>Available:</span>
+                  <span className="font-medium">{(esop.poolSize - esop.allocated).toFixed(1)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="font-medium text-blue-900 mb-2">ESOP Pool Timing</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <h5 className="font-medium text-blue-800 mb-1">Pre-Money Pool (Create)</h5>
+              <p className="text-blue-700">
                 ESOP shares are created from existing cap table, diluting current shareholders proportionally.
               </p>
-              <h4 className="font-medium text-blue-900 mb-1">Post-Money Pool (Top-Up)</h4>
-              <p className="text-xs text-blue-700">
+            </div>
+            <div>
+              <h5 className="font-medium text-blue-800 mb-1">Post-Money Pool (Top-Up)</h5>
+              <p className="text-blue-700">
                 ESOP pool is topped up after investment, typically diluting founders more than investors.
               </p>
             </div>
@@ -138,7 +187,7 @@ export function ScenarioSetupForm() {
         {founders.length > 0 && (
           <div className="space-y-4 mb-6">
             {founders.map((founder) => (
-              <div key={founder.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
+              <div key={founder.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                 <div>
                   <Label>Name</Label>
                   <Input
@@ -154,6 +203,14 @@ export function ScenarioSetupForm() {
                     value={founder.email}
                     onChange={(e) => handleFounderUpdate(founder.id, 'email', e.target.value)}
                     placeholder="founder@example.com"
+                  />
+                </div>
+                <div>
+                  <Label>Role</Label>
+                  <Input
+                    value={founder.role || ''}
+                    onChange={(e) => handleFounderUpdate(founder.id, 'role', e.target.value)}
+                    placeholder="CEO, CTO, etc."
                   />
                 </div>
                 <div>
@@ -192,7 +249,7 @@ export function ScenarioSetupForm() {
         {/* Add New Founder */}
         <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
           <h4 className="font-medium mb-4">Add New Founder</h4>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="new-founder-name">Name *</Label>
               <Input
@@ -210,6 +267,15 @@ export function ScenarioSetupForm() {
                 value={newFounder.email}
                 onChange={(e) => setNewFounder({ ...newFounder, email: e.target.value })}
                 placeholder="founder@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new-founder-role">Role</Label>
+              <Input
+                id="new-founder-role"
+                value={newFounder.role || ''}
+                onChange={(e) => setNewFounder({ ...newFounder, role: e.target.value })}
+                placeholder="CEO, CTO, etc."
               />
             </div>
             <div>

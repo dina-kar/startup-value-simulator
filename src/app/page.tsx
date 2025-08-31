@@ -9,6 +9,7 @@ import { AboutSection } from "@/components/mvpblocks/AboutSection";
 import { TestimonialMarquee } from "@/components/mvpblocks/TestimonialMarquee";
 import { GradientBars } from "@/components/mvpblocks/GradientBars";
 import { TeamSection } from "@/components/mvpblocks/TeamSection";
+import { StatsBar } from "@/components/mvpblocks/StatsBar";
 import { useAuth } from '@/lib/auth/AuthContext'
 
 export default function Home() {
@@ -41,10 +42,12 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen bg-background">
-      <div className="absolute inset-0 bg-grid-pattern opacity-40"></div>
-      <GradientBars className="fixed inset-0 opacity-30 pointer-events-none" />
+      <div className="absolute inset-0 bg-grid-pattern opacity-30" />
+      <GradientBars className="fixed inset-0 opacity-25 pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-noise mix-blend-overlay opacity-30" />
       <div className="relative z-10">
         <Hero />
+        <StatsBar />
         <FeatureGrid />
         <AboutSection />
         <TestimonialMarquee />

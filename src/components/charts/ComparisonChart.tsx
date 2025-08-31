@@ -1,6 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { useCurrencyFormatter } from '@/lib/format/currency'
 import type { CapTableCalculations } from '@/types/scenario'
 
 interface ComparisonChartProps {
@@ -75,6 +76,7 @@ export function ExitDistributionChart({
   exitValue = 100_000_000,
   className 
 }: ExitDistributionChartProps) {
+  const format = useCurrencyFormatter()
   if (!calculations || !calculations.currentOwnership) {
     return (
       <div className={`h-48 bg-muted rounded-lg flex items-center justify-center ${className}`}>
@@ -94,12 +96,10 @@ export function ExitDistributionChart({
   })
 
   const formatCurrency = (value: number) => {
-    if (value >= 1_000_000) {
-      return `$${(value / 1_000_000).toFixed(1)}M`
-    } else if (value >= 1_000) {
-      return `$${(value / 1_000).toFixed(0)}K`
-    }
-    return `$${value.toLocaleString()}`
+    if (value >= 1_000_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000_000) return format(value, { notation: 'compact', maximumFractionDigits: 1 })
+    if (value >= 1_000) return format(value, { notation: 'compact', maximumFractionDigits: 0 })
+    return format(value)
   }
 
   return (

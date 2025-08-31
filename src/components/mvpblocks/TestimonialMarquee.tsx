@@ -4,7 +4,7 @@ import { Marquee } from "./internal/Marquee";
 
 const quotes = [
 	{ q: "Best dilution modeling UX I've used.", a: "Seed Founder" },
-	{ q: "Replaced 4 brittle spreadsheets.", a: "Startup COO" },
+	{ q: "Replaced 4 brittle spreadsheets.", a: "Startup CEO" },
 	{ q: "Explains SAFE math to new angels perfectly.", a: "Angel Investor" },
 	{ q: "Instant what-if rounds = huge time saver.", a: "Founder / CEO" },
 	{ q: "Audit drawer builds trust with the board.", a: "CFO" },

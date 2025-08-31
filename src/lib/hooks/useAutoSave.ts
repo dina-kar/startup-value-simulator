@@ -30,6 +30,11 @@ export const useAutoSave = ({
       return
     }
 
+    // Additional guard: don't attempt auto-save for empty scenarios
+    if (scenario.founders?.length === 0 && scenario.rounds?.length === 0) {
+      return
+    }
+
     // Prevent too frequent saves (minimum 5 seconds between attempts)
     const now = Date.now()
     if (now - lastSaveAttempt.current < 5000) {

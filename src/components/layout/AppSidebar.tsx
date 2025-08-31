@@ -1,22 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { useUIStore } from '@/stores/uiStore'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { 
-  HomeIcon, 
-  FolderIcon, 
+  HomeIcon,  
   PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   BarChart3Icon,
-  UsersIcon,
   TrendingUpIcon,
   UserIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { CreateScenarioModal } from '@/components/modals/CreateScenarioModal'
 
 interface SidebarItem {
@@ -52,7 +50,7 @@ const sidebarItems: SidebarItem[] = [
 const bottomSidebarItems: SidebarItem[] = [
   {
     id: 'profile',
-    label: 'Profile & Settings',
+    label: 'Profile',
     icon: UserIcon,
     href: '/profile'
   }
@@ -63,7 +61,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ className }: AppSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const { isSidebarCollapsed: isCollapsed, setSidebarCollapsed } = useUIStore()
   const [isToggleHovered, setIsToggleHovered] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
@@ -71,6 +69,10 @@ export function AppSidebar({ className }: AppSidebarProps) {
   const handleNavigation = (item: SidebarItem) => {
     if (item.disabled) return
     router.push(item.href)
+    // Auto-collapse on navigation for narrow screens to preserve workspace
+    if (window.innerWidth < 640) {
+      setSidebarCollapsed(true)
+    }
   }
 
   return (
@@ -87,7 +89,7 @@ export function AppSidebar({ className }: AppSidebarProps) {
           <div className="flex items-center gap-2">
             <BarChart3Icon className="h-6 w-6 text-primary" />
             <span className="font-semibold text-foreground">
-              CapTable
+              Fund Sim
             </span>
           </div>
         )}
@@ -95,7 +97,7 @@ export function AppSidebar({ className }: AppSidebarProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setSidebarCollapsed(!isCollapsed)}
             className="h-8 w-8 p-0 flex items-center justify-center"
             onMouseEnter={() => setIsToggleHovered(true)}
             onMouseLeave={() => setIsToggleHovered(false)}
@@ -111,7 +113,7 @@ export function AppSidebar({ className }: AppSidebarProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setSidebarCollapsed(!isCollapsed)}
             className="h-8 w-8 p-0"
           >
             <ChevronLeftIcon className="h-4 w-4" />
@@ -184,8 +186,8 @@ export function AppSidebar({ className }: AppSidebarProps) {
         </ul>
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-border space-y-4">
+  {/* Footer */}
+  <div className="p-4 border-t border-border space-y-4">
         {/* Profile & Settings */}
         <nav>
           <ul className="space-y-2">
@@ -234,19 +236,9 @@ export function AppSidebar({ className }: AppSidebarProps) {
           </ul>
         </nav>
         
-        {/* Theme Toggle */}
-        <div className="flex justify-center">
-          <ThemeToggle showLabel={!isCollapsed} />
-        </div>
-        
-        {!isCollapsed ? (
-          <div className="text-xs text-muted-foreground text-center">
+        {!isCollapsed && (
+          <div className="text-xs text-muted-foreground text-center pt-2">
             <div>Startup Value Simulator</div>
-            <div>v1.0.0</div>
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <div className="h-2 w-2 rounded-full bg-green-500" title="v1.0.0" />
           </div>
         )}
       </div>

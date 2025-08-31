@@ -1,6 +1,138 @@
-# Startup Value Simulator
+# Fund Sim - A Startup Value Simulator
 
 A modern web application for modeling startup cap tables across funding rounds and calculating exit value distribution.
+
+## 🧩 Overview
+Plan, visualize, and share multi‑round dilution scenarios (founders, SAFEs, priced rounds, ESOP adjustments, secondary sales preview) with instant recalculation, mobile‑friendly UI, and an auditable calculation trail.
+
+---
+## ⚡ Quick Start
+```bash
+pnpm install            # Install dependencies
+cp env.example .env.local  # Add Supabase project keys
+pnpm setup:profile-db   # (Optional) Run DB bootstrap script
+pnpm dev                # Start local dev server (http://localhost:3000)
+```
+
+Minimal required env vars (see `.env.example`):
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+---
+## 🔧 Local Setup (Detailed)
+1. Install PNPM if missing: `npm i -g pnpm`
+2. Create a Supabase project, grab URL + anon key.
+3. Copy env file: `cp .env.example .env.local` and fill values.
+4. Initialize database (either):
+   - Automated: `pnpm setup:profile-db`
+   - Manual: run `database/setup.sql` in Supabase SQL editor.
+5. Start dev server: `pnpm dev` (hot reload enabled).
+6. (Optional) Run tests: `pnpm test` (Vitest config present for financial engine).
+
+Project scripts of interest:
+| Script | Purpose |
+| ------ | ------- |
+| `pnpm dev` | Start Next.js (App Router) dev server |
+| `pnpm build` | Production build |
+| `pnpm lint` | Biome lint/format (see `biome.json`) |
+| `pnpm test` | Vitest suite (financial calculations) |
+| `pnpm setup:profile-db` | Convenience DB bootstrap script |
+
+---
+## 🏗️ Architecture (Updated)
+
+Core layers:
+1. UI Layer (Next.js App Router + shadcn/ui) – pages under `src/app/*` orchestrate feature shells.
+2. State Layer (Zustand) – scenario data, UI state (notifications, sidebar, modals), user preferences (currency) stored in lightweight stores for predictable ephemeral state.
+3. Financial Engine – pure TypeScript class (`CalculationEngine.ts`) transforming scenario input -> derived cap table, per‑round results, exit distribution.
+4. Persistence Layer – Supabase (scenarios, shared links, user profiles) with RLS; thin query wrappers add typing & error normalization.
+5. Presentation Components – split by domain (`charts/`, `rounds/`, `results/`, `modals/`, `layout/`). Mobile adaptations (popover tab selectors) unify experience across small screens.
+6. Utility Layer – formatting (currency, numbers), guards, auto‑save, notification helpers.
+
+Key runtime flows:
+| Flow | Steps |
+| ---- | ----- |
+| Scenario Edit | User edits setup/round -> Zustand update -> Recompute via engine -> UI charts + tables re-render (derived state only) |
+| Auto Save | Debounced change detection -> validate -> Supabase upsert (skips empty scenario) -> save status indicator |
+| Share Link | Generate token row -> build public URL `/share/[token]` -> consumer loads read‑only snapshot |
+| Audit Trail | User opens drawer -> existing computed `calculations` object rendered with contextual formulas |
+
+Performance considerations:
+- Pure calculation engine (no side effects) enables cheap recomputation.
+- Stable component boundaries reduce unnecessary renders.
+- Mobile tab popovers collapse horizontal overflow.
+- Deferred modals/drawers mount only when opened.
+
+State stores (primary):
+| Store | Responsibility |
+| ----- | -------------- |
+| `scenarioStore` | Scenario entity, founders, rounds, ESOP, calculations, validation |
+| `uiStore` | Notifications, modals, active tabs, sidebar collapsed state, loading indicators |
+| `preferencesStore` (if present) | User-local settings (currency, etc.) |
+
+Directory highlights (delta since earlier phases):
+- `components/layout/ScenarioTabs.tsx` & `components/results/ResultsView.tsx`: responsive popover + tab pattern with transition classes.
+- `components/modals/AuditDrawer.tsx`: now mobile-aware with popover tab selector.
+- Sidebar collapse state persisted via `uiStore` (navigation no longer forces reopen).
+
+---
+## 💰 Financial Model Assumptions & Limitations
+
+Baseline Share Model:
+- Fixed initial fully diluted base: 10,000,000 shares (improves fractional precision, configurable in future).
+- Founder shares allocated proportionally to declared initial equity; ESOP carved out separately.
+- ESOP initial pool percentage reduces available founder equity (guard: founders + ESOP ≤ 100%).
+
+Round Ordering & Processing:
+- Rounds sorted by `order` field before computation.
+- SAFE rounds accumulate (no immediate share issuance) until first priced round triggers conversion.
+- Priced round with pending SAFEs: all prior unconverted SAFEs convert concurrently at the better (lower) of cap price vs discounted price (standard best‑of terms). MFN placeholder (logic extensible).
+
+SAFE Conversion Details:
+- Cap price = valuation cap ÷ pre‑conversion share count.
+- Discount price = priced round share price × (1 - discount%).
+- Conversion price = min(cap price, discount price). Shares = investment ÷ conversion price.
+
+ESOP Handling:
+- Pre‑money expansion: increases pre‑money share count so ESOP equals target % of (pre‑investment) shares, diluting only existing holders.
+- Post‑money expansion: after new investment shares are added, expands pool so ESOP equals target % of final total (dilutes all holders pro‑rata).
+- ESOP tracked as a single stakeholder (future: split granted vs available, vesting, refresh logic).
+
+Dilution & Ownership:
+- Dilution per round = new shares issued / post‑round total shares.
+- Ownership breakdown recalculated each round from updated totals (founders, ESOP, “round investor”, plus SAFE conversions folded into priced round investor currently – future: multiple investor entities).
+
+Exit Distribution:
+- Pure pro‑rata (percentage based) – no liquidation preferences, participation, stacking, or conversion waterfalls modeled yet.
+- Net value = ownership % × exit value input (single static exit scenario; future: distribution curves / sensitivities).
+
+Secondary Transactions:
+- Basic founder share sales supported (reduces founder shares, increases round investor shares) – does not change total share count.
+
+Validation Rules:
+- Positive amounts / valuations / caps required; ESOP 0–50%; founder equity > 0 and aggregate within allowable post‑ESOP range.
+
+Not Yet Modeled (Intentional Simplifications):
+- Liquidation preferences (1x, participating, capped).
+- Option exercise timing / dilution impacts at exit.
+- Multiple distinct investor entities per round.
+- Convertible notes vs SAFEs distinctions.
+- Anti‑dilution adjustments (weighted average / full ratchet).
+- Vesting schedules & unvested share clawbacks.
+- Tax treatments or transaction fees.
+- Complex secondary market structures / tender offer mechanics.
+
+Planned Extensibility Points:
+- Plug‑in preference waterfall engine.
+- Multi‑exit scenario comparison (sensitivity analysis array).
+- Investor registry & instrument metadata (preferred, common, SAFE, note).
+- Advanced ESOP forecasting (refresh cadence, burn modeling).
+
+Disclaimer: Model outcomes are illustrative only and omit important legal & economic nuances. Always consult professional advisors for real transactions.
+
+---
 
 ## 🚀 **Phase 8: Polish & Performance - COMPLETE**
 
@@ -116,7 +248,7 @@ Building on the comprehensive data persistence and sharing system from Phase 3, 
 
 ### **Prerequisites**
 1. **Supabase Project** - Create a free account at [supabase.com](https://supabase.com)
-2. **Environment Variables** - Copy `.env.example` to `.env.local` and add your Supabase credentials
+2. **Environment Variables** - Copy `env.example` to `.env.local` and add your Supabase credentials
 
 ### **Database Setup**
 1. Run the SQL script in `database/setup.sql` in your Supabase SQL editor
@@ -128,7 +260,7 @@ Building on the comprehensive data persistence and sharing system from Phase 3, 
 pnpm install
 
 # Set up environment variables
-cp .env.example .env.local
+cp env.example .env.local
 # Edit .env.local with your Supabase credentials
 
 # Start development server
