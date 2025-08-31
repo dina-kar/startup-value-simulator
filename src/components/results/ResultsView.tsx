@@ -1,18 +1,21 @@
 'use client'
 
-import { useScenarioStore } from '@/stores/scenarioStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { CapTableTable } from '@/components/charts/CapTableTable'
 import { OwnershipChart } from '@/components/charts/OwnershipChart'
 import { ExitWaterfallChart } from '@/components/charts/ExitWaterfallChart'
 import { AuditDrawer } from '@/components/modals/AuditDrawer'
+import { ShareModal } from '@/components/modals/ShareModal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { ShareIcon } from 'lucide-react'
 
 export function ResultsView() {
-  const { calculations, founders, validationErrors, rounds } = useScenarioStore()
+  const { calculations, founders, validationErrors, rounds, scenario } = useScenarioStore()
 
   if (founders.length === 0) {
     return (
-      <div className="text-center py-12">
+      <div className="text-center py-12" data-export="scenario-results">
         <h3 className="text-lg font-medium text-gray-900 mb-2">
           Setup Required
         </h3>
@@ -25,7 +28,7 @@ export function ResultsView() {
 
   if (validationErrors.length > 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" data-export="scenario-results">
         <div className="text-center py-8 bg-red-50 border border-red-200 rounded-lg">
           <h3 className="text-lg font-medium text-red-900 mb-2">
             Validation Errors
@@ -55,7 +58,7 @@ export function ResultsView() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-export="scenario-results">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold mb-4">Results & Analysis</h2>
@@ -63,7 +66,17 @@ export function ResultsView() {
             Complete cap table analysis, ownership trends, and exit scenarios
           </p>
         </div>
-        <AuditDrawer />
+        <div className="flex items-center gap-2">
+          {scenario && (
+            <ShareModal scenario={scenario}>
+              <Button variant="outline" size="sm">
+                <ShareIcon className="h-4 w-4 mr-2" />
+                Share Results
+              </Button>
+            </ShareModal>
+          )}
+          <AuditDrawer />
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">

@@ -19,7 +19,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 // Helper to get the current user
 export const getCurrentUser = async () => {
   const { data: { user }, error } = await supabase.auth.getUser()
-  if (error) throw error
+  if (error) {
+    console.error('getCurrentUser error:', error)
+    throw error
+  }
   return user
 }
 
@@ -31,7 +34,14 @@ export const isAuthenticated = async () => {
 
 // Helper for error handling
 export const handleSupabaseError = (error: unknown): { success: false; error: string } => {
-  console.error('Supabase error:', error)
+  // Only log non-empty errors to avoid spam
+  if (error && typeof error === 'object' && Object.keys(error).length > 0) {
+    console.error('Supabase error:', error)
+  } else if (error && typeof error === 'string' && error.trim()) {
+    console.error('Supabase error:', error)
+  } else if (error instanceof Error) {
+    console.error('Supabase error:', error)
+  }
   
   // Handle different types of errors
   if (error instanceof Error) {

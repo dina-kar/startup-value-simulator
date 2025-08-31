@@ -48,14 +48,14 @@ export class CalculationEngine {
     // Start with a round number that gives clean share counts
     const baseShares = 10000000 // 10M shares initially
     
-    // Verify equity splits add up to expected total (100% - ESOP pool)
+    // Verify equity splits don't exceed available equity (allow partial allocation)
     const founderEquityTotal = this.scenario.founders.reduce(
       (sum, founder) => sum + founder.initialEquity, 0
     )
-    const expectedTotal = 100 - this.scenario.esop.poolSize
+    const maxAllowedTotal = 100 - this.scenario.esop.poolSize
     
-    if (Math.abs(founderEquityTotal - expectedTotal) > 0.01) {
-      throw new Error(`Founder equity (${founderEquityTotal}%) must equal ${expectedTotal}% (100% - ${this.scenario.esop.poolSize}% ESOP pool)`)
+    if (founderEquityTotal > maxAllowedTotal + 0.01) {
+      throw new Error(`Founder equity (${founderEquityTotal}%) cannot exceed ${maxAllowedTotal}% (100% - ${this.scenario.esop.poolSize}% ESOP pool)`)
     }
 
     return baseShares
@@ -70,28 +70,190 @@ export class CalculationEngine {
     previousRounds: RoundResult[]
   ): RoundResult {
     if (round.type === 'Priced') {
-      return this.calculatePricedRound(round, preRoundShares)
+      // Check if any previous SAFEs need to convert into this priced round
+      const pendingSAFEs = this.getPendingSAFEs(round, previousRounds)
+      if (pendingSAFEs.length > 0) {
+        return this.calculatePricedRoundWithSAFEConversions(round, preRoundShares, pendingSAFEs, previousRounds)
+      } else {
+        return this.calculatePricedRound(round, preRoundShares, previousRounds)
+      }
     } else {
-      return this.calculateSAFERound(round, preRoundShares, previousRounds)
+      // SAFE round - just track it, don't convert yet
+      return this.calculateStandaloneSAFE(round, preRoundShares)
     }
   }
 
   /**
-   * Calculate a priced equity round with ESOP adjustments
+   * Get all pending SAFEs that should convert into this priced round
    */
-  private calculatePricedRound(round: Round, preRoundShares: number): RoundResult {
+  private getPendingSAFEs(pricedRound: Round, previousRounds: RoundResult[]): Round[] {
+    const sortedRounds = [...this.scenario.rounds].sort((a, b) => a.order - b.order)
+    const pricedRoundIndex = sortedRounds.findIndex(r => r.id === pricedRound.id)
+    
+    const pendingSAFEs: Round[] = []
+    for (let i = 0; i < pricedRoundIndex; i++) {
+      const round = sortedRounds[i]
+      if (round.type === 'SAFE') {
+        // Check if this SAFE hasn't been converted yet
+        const wasConverted = previousRounds.some(result => 
+          result.roundId === round.id && result.sharePrice < (round.valuationCap || 0) / 10000000
+        )
+        if (!wasConverted) {
+          pendingSAFEs.push(round)
+        }
+      }
+    }
+    
+    return pendingSAFEs
+  }
+
+  /**
+   * Calculate a priced round with SAFE conversions
+   */
+  private calculatePricedRoundWithSAFEConversions(
+    pricedRound: Round,
+    preRoundShares: number,
+    pendingSAFEs: Round[],
+    previousRounds?: RoundResult[]
+  ): RoundResult {
+    if (!pricedRound.preMoney || pricedRound.preMoney <= 0) {
+      throw new Error(`${pricedRound.name} must have valid pre-money valuation`)
+    }
+    
+    let workingShares = preRoundShares
+    const preMoney = pricedRound.preMoney
+    
+    // Calculate total investment (priced round + converting SAFEs)
+    const totalInvestment = pricedRound.amount + pendingSAFEs.reduce((sum, safe) => sum + safe.amount, 0)
+    
+    // Handle ESOP adjustments BEFORE pricing (pre-money) - account for upcoming dilution
+    if (pricedRound.esopAdjustment?.expand && pricedRound.esopAdjustment.isPreMoney) {
+      const result = this.handleESOPAdjustmentWithDilution(
+        pricedRound, 
+        workingShares, 
+        preMoney, 
+        totalInvestment, 
+        true,
+        previousRounds
+      )
+      workingShares = result.newTotalShares
+    }
+    
+    // Calculate priced round share price
+    const sharePrice = preMoney / workingShares
+    
+    // Convert all pending SAFEs
+    let totalSAFEShares = 0
+    for (const safe of pendingSAFEs) {
+      const safeShares = this.calculateSAFEShares(safe, sharePrice, workingShares)
+      totalSAFEShares += safeShares
+    }
+    
+    // Calculate priced round new shares
+    const pricedRoundShares = pricedRound.amount / sharePrice
+    const totalNewShares = totalSAFEShares + pricedRoundShares
+    
+    let totalShares = workingShares + totalNewShares
+    
+    // Handle ESOP adjustments AFTER pricing (post-money)
+    if (pricedRound.esopAdjustment?.expand && !pricedRound.esopAdjustment.isPreMoney) {
+      const result = this.handleESOPAdjustmentWithDilution(
+        pricedRound, 
+        totalShares, 
+        preMoney + totalInvestment, 
+        0, // No additional dilution for post-money
+        false,
+        previousRounds
+      )
+      totalShares = result.newTotalShares
+    }
+    
+    const postMoney = preMoney + totalInvestment
+    const dilution = (totalNewShares / totalShares) * 100
+
+    const ownership = this.calculateRoundOwnership(pricedRound, totalShares, totalNewShares, 0, [])
+
+    return {
+      roundId: pricedRound.id,
+      preMoney,
+      postMoney,
+      sharePrice,
+      sharesIssued: totalNewShares,
+      totalShares,
+      dilution,
+      ownership
+    }
+  }
+
+  /**
+   * Calculate shares for a SAFE conversion
+   */
+  private calculateSAFEShares(safe: Round, pricedRoundSharePrice: number, preConversionShares: number): number {
+    if (!safe.valuationCap) {
+      throw new Error(`SAFE ${safe.name} must have valuation cap`)
+    }
+    
+    // Calculate cap price
+    const capPrice = safe.valuationCap / preConversionShares
+    
+    // Calculate discount price (if any)
+    const discountPrice = safe.discount 
+      ? pricedRoundSharePrice * (1 - safe.discount / 100)
+      : Infinity
+    
+    // SAFE converts at better price (lower price = more shares)
+    const conversionPrice = Math.min(capPrice, discountPrice)
+    
+    return safe.amount / conversionPrice
+  }
+
+  /**
+   * Calculate standalone SAFE (before conversion)
+   */
+  private calculateStandaloneSAFE(round: Round, preRoundShares: number): RoundResult {
+    if (!round.valuationCap || round.valuationCap <= 0) {
+      throw new Error(`${round.name} must have valid valuation cap`)
+    }
+    
+    // For standalone SAFE, just track it - no actual conversion yet
+    // Use cap price as estimate
+    const estimatedPrice = round.valuationCap / preRoundShares
+    
+    // Don't actually change share count yet - SAFEs convert later
+    const ownership = this.calculateRoundOwnership(round, preRoundShares, 0, 0, [])
+
+    return {
+      roundId: round.id,
+      preMoney: round.valuationCap,
+      postMoney: round.valuationCap,
+      sharePrice: estimatedPrice,
+      sharesIssued: 0, // No shares issued yet
+      totalShares: preRoundShares,
+      dilution: 0, // No dilution until conversion
+      ownership
+    }
+  }
+  private calculatePricedRound(round: Round, preRoundShares: number, previousRounds?: RoundResult[]): RoundResult {
     if (!round.preMoney || round.preMoney <= 0) {
       throw new Error(`${round.name} must have valid pre-money valuation`)
     }
     
     let workingShares = preRoundShares
+    let esopSharesAdded = 0
     const preMoney = round.preMoney
     
-    // Handle ESOP adjustments BEFORE pricing (pre-money)
+    // Handle ESOP adjustments BEFORE pricing (pre-money) - account for upcoming dilution
     if (round.esopAdjustment?.expand && round.esopAdjustment.isPreMoney) {
-      const result = this.handleESOPAdjustment(round, workingShares, preMoney, true)
+      const result = this.handleESOPAdjustmentWithDilution(
+        round, 
+        workingShares, 
+        preMoney, 
+        round.amount, 
+        true,
+        previousRounds
+      )
       workingShares = result.newTotalShares
-      // Pre-money valuation stays the same, but effective share price changes
+      esopSharesAdded += result.esopShares
     }
     
     const sharePrice = preMoney / workingShares
@@ -100,14 +262,26 @@ export class CalculationEngine {
     
     // Handle ESOP adjustments AFTER pricing (post-money)
     if (round.esopAdjustment?.expand && !round.esopAdjustment.isPreMoney) {
-      const result = this.handleESOPAdjustment(round, totalShares, preMoney + round.amount, false)
+      const result = this.handleESOPAdjustmentWithDilution(
+        round, 
+        totalShares, 
+        preMoney + round.amount, 
+        0, // No additional dilution for post-money
+        false,
+        previousRounds
+      )
       totalShares = result.newTotalShares
+      esopSharesAdded += result.esopShares
     }
     
     const postMoney = preMoney + round.amount
     const dilution = (sharesIssued / totalShares) * 100
 
-    const ownership = this.calculateRoundOwnership(round, totalShares, sharesIssued)
+    // Handle secondary transactions (if any)
+    let adjustedOwnership = this.calculateRoundOwnership(round, totalShares, sharesIssued, esopSharesAdded, previousRounds)
+    if (round.secondaryConfig?.enabled) {
+      adjustedOwnership = this.processSecondaryTransactions(round, adjustedOwnership, totalShares, sharePrice)
+    }
 
     return {
       roundId: round.id,
@@ -115,150 +289,71 @@ export class CalculationEngine {
       postMoney,
       sharePrice,
       sharesIssued,
-      totalShares,
+      totalShares, // Secondary sales don't change total share count
       dilution,
-      ownership
+      ownership: adjustedOwnership
     }
   }
 
   /**
-   * Handle ESOP pool creation or expansion
+   * Handle ESOP pool creation or expansion with dilution awareness
    */
-  private handleESOPAdjustment(
+  private handleESOPAdjustmentWithDilution(
     round: Round,
     currentShares: number,
-    _valuation: number,
-    isPreMoney: boolean
+    valuation: number,
+    upcomingInvestment: number,
+    isPreMoney: boolean,
+    previousRounds?: RoundResult[]
   ): { newTotalShares: number; esopShares: number } {
     if (!round.esopAdjustment?.newPoolSize) {
       return { newTotalShares: currentShares, esopShares: 0 }
     }
 
-    const targetPoolPercent = round.esopAdjustment.newPoolSize
+    const targetPoolPercent = round.esopAdjustment.newPoolSize / 100
     
     if (isPreMoney) {
-      // Pre-money ESOP expansion dilutes existing shareholders proportionally
-      // Target: ESOP = targetPoolPercent% of post-adjustment shares
-      // newShares = currentShares / (1 - targetPoolPercent/100)
-      const newTotalShares = currentShares / (1 - targetPoolPercent / 100)
+      // Pre-money ESOP expansion: expand share count so ESOP = targetPoolPercent% of pre-money shares
+      // This gets diluted by the investment, which is the standard behavior
+      const newTotalShares = currentShares / (1 - targetPoolPercent)
       const esopShares = newTotalShares - currentShares
-      
       return { newTotalShares, esopShares }
     } else {
-      // Post-money ESOP expansion: add shares to reach target percentage
-      // Target: ESOP = targetPoolPercent% of final shares
-      const newTotalShares = currentShares / (1 - targetPoolPercent / 100)
-      const esopShares = newTotalShares - currentShares
+      // Post-money ESOP expansion: after investment, add shares to make ESOP targetPoolPercent% of final total
+      
+      // Step 1: Calculate post-investment shares (before ESOP adjustment)
+      const sharePrice = valuation / currentShares
+      const investmentShares = upcomingInvestment / sharePrice
+      const postInvestmentShares = currentShares + investmentShares
+      
+      // Step 2: Calculate current ESOP shares (total ESOP shares from all previous rounds)
+      let currentESOPShares = 0
+      if (previousRounds && previousRounds.length > 0) {
+        // Get ESOP shares from the most recent round
+        const lastRound = previousRounds[previousRounds.length - 1]
+        const esopEntry = lastRound.ownership.find(o => o.stakeholderType === 'esop')
+        currentESOPShares = esopEntry?.shares || 0
+      } else {
+        // No previous rounds, calculate from initial scenario
+        const currentESOPPercent = this.scenario.esop.poolSize / 100
+        currentESOPShares = currentESOPPercent * currentShares
+      }
+      
+      // Step 3: Calculate the exact number of shares needed for target percentage
+      // We want: targetESOPShares / (postInvestmentShares + additionalESOPShares) = targetPoolPercent
+      // Solving: targetESOPShares = targetPoolPercent * (postInvestmentShares + additionalESOPShares)
+      // Since additionalESOPShares = targetESOPShares - currentESOPShares:
+      // targetESOPShares = targetPoolPercent * (postInvestmentShares + targetESOPShares - currentESOPShares)
+      // targetESOPShares = targetPoolPercent * postInvestmentShares + targetPoolPercent * targetESOPShares - targetPoolPercent * currentESOPShares
+      // targetESOPShares * (1 - targetPoolPercent) = targetPoolPercent * (postInvestmentShares - currentESOPShares)
+      // targetESOPShares = targetPoolPercent * (postInvestmentShares - currentESOPShares) / (1 - targetPoolPercent)
+      
+      const targetESOPShares = targetPoolPercent * (postInvestmentShares - currentESOPShares) / (1 - targetPoolPercent)
+      const additionalESOPShares = Math.max(0, targetESOPShares - currentESOPShares)
+      const esopShares = additionalESOPShares
+      const newTotalShares = postInvestmentShares + esopShares
       
       return { newTotalShares, esopShares }
-    }
-  }
-
-  /**
-   * Calculate a SAFE conversion with proper cap and discount logic
-   */
-  private calculateSAFERound(
-    round: Round, 
-    preRoundShares: number, 
-    _previousRounds: RoundResult[]
-  ): RoundResult {
-    if (!round.valuationCap || round.valuationCap <= 0) {
-      throw new Error(`${round.name} must have valid valuation cap`)
-    }
-    
-    const valuationCap = round.valuationCap
-    const investment = round.amount
-    const discount = round.discount || 0
-    
-    // Check if this is converting in a priced round
-    const nextPricedRound = this.findNextPricedRound(round)
-    
-    if (nextPricedRound) {
-      // SAFE converts at the better of cap price or discounted price
-      return this.calculateSAFEConversion(round, nextPricedRound, preRoundShares)
-    } else {
-      // Standalone SAFE - estimate using cap
-      const capPrice = valuationCap / preRoundShares
-      const discountedPrice = discount > 0 ? capPrice * (1 - discount / 100) : capPrice
-      const conversionPrice = Math.min(capPrice, discountedPrice)
-      const sharesIssued = investment / conversionPrice
-      
-      const totalShares = preRoundShares + sharesIssued
-      const dilution = (sharesIssued / totalShares) * 100
-      
-      const ownership = this.calculateRoundOwnership(round, totalShares, sharesIssued)
-
-      return {
-        roundId: round.id,
-        preMoney: valuationCap,
-        postMoney: valuationCap + investment,
-        sharePrice: conversionPrice,
-        sharesIssued,
-        totalShares,
-        dilution,
-        ownership
-      }
-    }
-  }
-
-  /**
-   * Find the next priced round for SAFE conversion
-   */
-  private findNextPricedRound(safeRound: Round): Round | null {
-    const sortedRounds = [...this.scenario.rounds].sort((a, b) => a.order - b.order)
-    const safeIndex = sortedRounds.findIndex(r => r.id === safeRound.id)
-    
-    for (let i = safeIndex + 1; i < sortedRounds.length; i++) {
-      if (sortedRounds[i].type === 'Priced') {
-        return sortedRounds[i]
-      }
-    }
-    
-    return null
-  }
-
-  /**
-   * Calculate SAFE conversion into a priced round
-   */
-  private calculateSAFEConversion(
-    safeRound: Round,
-    pricedRound: Round,
-    preConversionShares: number
-  ): RoundResult {
-    if (!safeRound.valuationCap || !pricedRound.preMoney) {
-      throw new Error('Invalid SAFE or priced round parameters')
-    }
-
-    // Calculate priced round share price
-    const pricedRoundPrice = pricedRound.preMoney / preConversionShares
-    
-    // Calculate SAFE conversion price (better of cap or discount)
-    const capPrice = safeRound.valuationCap / preConversionShares
-    const discountedPrice = safeRound.discount 
-      ? pricedRoundPrice * (1 - safeRound.discount / 100)
-      : Infinity
-    
-    const conversionPrice = Math.min(capPrice, discountedPrice)
-    const safeShares = safeRound.amount / conversionPrice
-    
-    // Calculate priced round shares
-    const pricedShares = pricedRound.amount / pricedRoundPrice
-    
-    const totalNewShares = safeShares + pricedShares
-    const totalShares = preConversionShares + totalNewShares
-    const dilution = (totalNewShares / totalShares) * 100
-
-    const ownership = this.calculateRoundOwnership(pricedRound, totalShares, totalNewShares)
-
-    return {
-      roundId: pricedRound.id,
-      preMoney: pricedRound.preMoney,
-      postMoney: pricedRound.preMoney + pricedRound.amount + safeRound.amount,
-      sharePrice: pricedRoundPrice,
-      sharesIssued: totalNewShares,
-      totalShares,
-      dilution,
-      ownership
     }
   }
 
@@ -268,13 +363,46 @@ export class CalculationEngine {
   private calculateRoundOwnership(
     round: Round, 
     totalShares: number, 
-    newSharesIssued: number
+    newSharesIssued: number,
+    esopSharesAdded: number = 0,
+    previousRounds?: RoundResult[]
   ): OwnershipBreakdown[] {
     const ownership: OwnershipBreakdown[] = []
     
-    // Calculate founder ownership (diluted)
+    // Calculate current ESOP shares
+    let currentESOPShares = 0
+    if (previousRounds && previousRounds.length > 0) {
+      // Get ESOP shares from the most recent round and add any new ESOP shares from this round
+      const lastRound = previousRounds[previousRounds.length - 1]
+      const esopEntry = lastRound.ownership.find(o => o.stakeholderType === 'esop')
+      currentESOPShares = (esopEntry?.shares || 0) + esopSharesAdded
+    } else {
+      // No previous rounds - handle initial ESOP allocation
+      if (esopSharesAdded > 0) {
+        // ESOP expansion occurred in this round, so use the expanded amount
+        // The expansion is a replacement, not addition to the initial ESOP
+        const targetESOPPercent = round.esopAdjustment?.newPoolSize || this.scenario.esop.poolSize
+        currentESOPShares = (targetESOPPercent / 100) * (totalShares - newSharesIssued)
+      } else {
+        // No ESOP expansion, use initial allocation
+        const initialESOPPercent = this.scenario.esop.poolSize / 100
+        const preInvestmentShares = totalShares - newSharesIssued
+        currentESOPShares = initialESOPPercent * preInvestmentShares
+      }
+    }
+    
+    // Calculate remaining shares for founders and investors
+    const investorShares = newSharesIssued
+    const founderShares = totalShares - currentESOPShares - investorShares
+    
+    // Calculate founder ownership (split proportionally based on initial equity)
+    const totalFounderEquity = this.scenario.founders.reduce(
+      (sum, founder) => sum + founder.initialEquity, 0
+    )
+    
     for (const founder of this.scenario.founders) {
-      const shares = (founder.initialEquity / 100) * (totalShares - newSharesIssued)
+      const founderProportion = founder.initialEquity / totalFounderEquity
+      const shares = founderShares * founderProportion
       const percentage = (shares / totalShares) * 100
       
       ownership.push({
@@ -287,29 +415,93 @@ export class CalculationEngine {
     }
 
     // Add ESOP pool
-    const esopShares = (this.scenario.esop.poolSize / 100) * (totalShares - newSharesIssued)
-    const esopPercentage = (esopShares / totalShares) * 100
+    const esopPercentage = (currentESOPShares / totalShares) * 100
     
     ownership.push({
       stakeholderId: 'esop',
       stakeholderName: 'ESOP Pool',
       stakeholderType: 'esop',
-      shares: esopShares,
+      shares: currentESOPShares,
       percentage: esopPercentage
     })
 
     // Add investor from this round
-    const investorPercentage = (newSharesIssued / totalShares) * 100
+    const investorPercentage = (investorShares / totalShares) * 100
     
     ownership.push({
       stakeholderId: `investor-${round.id}`,
       stakeholderName: `${round.name} Investor`,
       stakeholderType: 'investor',
-      shares: newSharesIssued,
+      shares: investorShares,
       percentage: investorPercentage
     })
 
     return ownership
+  }
+
+  /**
+   * Process secondary transactions (founder share sales)
+   */
+  private processSecondaryTransactions(
+    round: Round,
+    ownership: OwnershipBreakdown[],
+    totalShares: number,
+    _sharePrice: number
+  ): OwnershipBreakdown[] {
+    if (!round.secondaryConfig?.enabled || !round.secondaryConfig.transactions.length) {
+      return ownership
+    }
+
+    // Create a copy of ownership to modify
+    const adjustedOwnership = [...ownership]
+    
+    for (const transaction of round.secondaryConfig.transactions) {
+      // Find the founder selling shares
+      const founderIndex = adjustedOwnership.findIndex(
+        owner => owner.stakeholderId === transaction.founderId
+      )
+      
+      if (founderIndex === -1) {
+        continue // Founder not found, skip transaction
+      }
+      
+      const founder = adjustedOwnership[founderIndex]
+      
+      // Calculate shares being sold
+      let sharesSold: number
+      if (transaction.isPercentage) {
+        // Selling a percentage of their current equity
+        sharesSold = (transaction.sharesOrPercent / 100) * founder.shares
+      } else {
+        // Selling a specific number of shares
+        sharesSold = transaction.sharesOrPercent
+      }
+      
+      // Ensure founder has enough shares to sell
+      sharesSold = Math.min(sharesSold, founder.shares)
+      
+      if (sharesSold <= 0) {
+        continue
+      }
+      
+      // Update founder's ownership
+      founder.shares -= sharesSold
+      founder.percentage = (founder.shares / totalShares) * 100
+      
+      // Add shares to investor (or create separate secondary investor entry)
+      // For simplicity, add to the primary investor for this round
+      const investorIndex = adjustedOwnership.findIndex(
+        owner => owner.stakeholderId === `investor-${round.id}`
+      )
+      
+      if (investorIndex !== -1) {
+        const investor = adjustedOwnership[investorIndex]
+        investor.shares += sharesSold
+        investor.percentage = (investor.shares / totalShares) * 100
+      }
+    }
+    
+    return adjustedOwnership
   }
 
   /**
@@ -381,14 +573,14 @@ export class CalculationEngine {
   static validate(scenario: Scenario): string[] {
     const errors: string[] = []
 
-    // Check founder equity sums correctly
+    // Check founder equity doesn't exceed available equity
     const founderEquityTotal = scenario.founders.reduce(
       (sum, founder) => sum + founder.initialEquity, 0
     )
-    const expectedTotal = 100 - scenario.esop.poolSize
+    const maxAllowedTotal = 100 - scenario.esop.poolSize
     
-    if (Math.abs(founderEquityTotal - expectedTotal) > 0.01) {
-      errors.push(`Founder equity must sum to ${expectedTotal}% (found ${founderEquityTotal}%)`)
+    if (founderEquityTotal > maxAllowedTotal) {
+      errors.push(`Founder equity cannot exceed ${maxAllowedTotal}% (found ${founderEquityTotal}%)`)
     }
 
     // Check individual founder equity is positive

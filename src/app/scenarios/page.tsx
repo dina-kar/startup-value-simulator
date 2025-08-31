@@ -31,6 +31,7 @@ export default function ScenariosPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadScenarios = useCallback(async () => {
     setLoading(true)
     try {
@@ -55,7 +56,7 @@ export default function ScenariosPage() {
     } finally {
       setLoading(false)
     }
-  }, [showError])
+  }, [])
 
   useEffect(() => {
     loadScenarios()
@@ -169,9 +170,6 @@ export default function ScenariosPage() {
               <BannerIcon icon={PlusIcon} />
               <div>
                 <BannerTitle>No scenarios found</BannerTitle>
-                <p className="text-sm mt-1">
-                  {searchTerm ? 'Try adjusting your search criteria.' : 'Create your first scenario to get started.'}
-                </p>
               </div>
             </Banner>
             

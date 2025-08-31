@@ -186,6 +186,23 @@ body {
   font-family: var(--font-geist-sans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif);
 }
 
+/* Print / export adjustments */
+@media print {
+  /* Hide interactive / navigation elements */
+  nav, aside, .sidebar, [data-role="sidebar"], button, .no-print, .print-hidden { display: none !important; }
+  /* Force full width layout */
+  .container, .max-w-6xl, .max-w-7xl, [data-export-root] { max-width: 100% !important; width: 100% !important; }
+  body { background: #ffffff !important; color: #111827 !important; }
+  /* Avoid page breaks inside key blocks */
+  .card, .page-break-avoid { break-inside: avoid; }
+  /* Typography scaling */
+  h1 { font-size: 28pt !important; }
+  h2 { font-size: 20pt !important; }
+  h3 { font-size: 16pt !important; }
+  /* Remove shadows */
+  * { box-shadow: none !important; }
+}
+
 /* Toggle Switch Styles */
 .toggle {
   position: relative;

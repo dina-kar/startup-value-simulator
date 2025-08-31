@@ -9,7 +9,8 @@ import { ScenarioTabs } from '@/components/layout/ScenarioTabs'
 import { ScenarioSetupForm } from '@/components/forms/ScenarioSetupForm'
 import { RoundsManager } from '@/components/rounds/RoundsManager'
 import { ResultsView } from '@/components/results/ResultsView'
-import { useUIStore } from '@/stores/uiStore'
+import { useUIStore } from '@/lib/stores/uiStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { loadSharedScenario } from '@/lib/database/queries'
 import type { Scenario } from '@/types/scenario'
 
@@ -17,7 +18,8 @@ export default function SharedScenarioPage() {
   const params = useParams()
   const token = params.token as string
   
-  const { activeScenarioTab } = useUIStore()
+  const { activeTab } = useUIStore()
+  const { setScenario, scenario } = useScenarioStore()
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,8 +37,8 @@ export default function SharedScenarioPage() {
         
         if (result.success && result.data) {
           setSharedScenario(result.data)
-          // TODO: Load the shared scenario data into the store
-          // For now, we'll just display the shared scenario
+          // Load the shared scenario into the store for viewing
+          setScenario(result.data)
         } else {
           setError(result.error || 'Failed to load scenario')
         }
@@ -49,7 +51,14 @@ export default function SharedScenarioPage() {
     }
 
     loadSharedScenarioData()
-  }, [token])
+  }, [token, setScenario])
+
+  // PDF export removed
+
+  const handleCreateOwn = () => {
+    // Clear the current scenario and redirect to builder
+    window.location.href = '/builder'
+  }
 
   if (loading) {
     return (
@@ -91,7 +100,7 @@ export default function SharedScenarioPage() {
     )
   }
 
-  if (!sharedScenario) {
+  if (!sharedScenario || !scenario) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -126,7 +135,7 @@ export default function SharedScenarioPage() {
               </Banner>
               
               <Button 
-                onClick={() => { window.location.href = '/builder' }}
+                onClick={handleCreateOwn}
                 variant="outline"
                 size="sm"
               >
@@ -148,7 +157,7 @@ export default function SharedScenarioPage() {
           <ScenarioTabs />
 
           <div className="mt-6">
-            {activeScenarioTab === 'setup' && (
+            {activeTab === 'setup' && (
               <div className="relative">
                 <div className="pointer-events-none opacity-75">
                   <ScenarioSetupForm />
@@ -164,7 +173,7 @@ export default function SharedScenarioPage() {
               </div>
             )}
             
-            {activeScenarioTab === 'rounds' && (
+            {activeTab === 'rounds' && (
               <div className="relative">
                 <div className="pointer-events-none opacity-75">
                   <RoundsManager />
@@ -180,7 +189,11 @@ export default function SharedScenarioPage() {
               </div>
             )}
             
-            {activeScenarioTab === 'results' && <ResultsView />}
+            {activeTab === 'results' && (
+              <div data-export="scenario-results">
+                <ResultsView />
+              </div>
+            )}
           </div>
         </div>
       </div>

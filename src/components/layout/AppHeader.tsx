@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SaveStatus } from '@/components/ui/save-status'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useScenarioStore } from '@/stores/scenarioStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { useUIStore } from '@/lib/stores/uiStore'
 import { useAutoSave } from '@/lib/hooks/useAutoSave'
 import { useNotifications } from '@/lib/stores/uiStore'
@@ -19,9 +19,9 @@ interface AppHeaderProps {
 
 export const AppHeader = ({ className }: AppHeaderProps) => {
   const { 
-    name, 
+    scenario, 
     isSaving,
-    updateScenarioMeta 
+    setScenario 
   } = useScenarioStore()
   
   const { setShareModalOpen } = useUIStore()
@@ -32,18 +32,18 @@ export const AppHeader = ({ className }: AppHeaderProps) => {
   const [tempName, setTempName] = useState('')
 
   const handleNameEdit = () => {
-    if (!name) return
-    setTempName(name)
+    if (!scenario?.name) return
+    setTempName(scenario.name)
     setIsEditingName(true)
   }
 
   const handleNameSave = async () => {
-    if (!name || !tempName.trim()) {
+    if (!scenario || !tempName.trim()) {
       setIsEditingName(false)
       return
     }
 
-    updateScenarioMeta({ name: tempName.trim() })
+    setScenario({ ...scenario, name: tempName.trim() }, true) // Mark as changed
     setIsEditingName(false)
     
     // Auto-save the name change
@@ -66,14 +66,14 @@ export const AppHeader = ({ className }: AppHeaderProps) => {
   }
 
   const handleShare = () => {
-    if (!name) {
+    if (!scenario) {
       showError('No scenario to share', 'Please create a scenario first.')
       return
     }
     setShareModalOpen(true)
   }
 
-  if (!name) {
+  if (!scenario) {
     return (
       <header className={cn(
         'flex items-center justify-between p-4 border-b bg-background',
@@ -132,7 +132,7 @@ export const AppHeader = ({ className }: AppHeaderProps) => {
             className="text-xl font-semibold text-left hover:bg-muted px-2 py-1 rounded transition-colors truncate"
             title="Click to edit name"
           >
-            {name}
+            {scenario.name}
           </button>
         )}
       </div>

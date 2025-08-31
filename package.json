@@ -6,6 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
     "lint": "biome check",
     "format": "biome format --write",
     "setup:db": "node scripts/setup-database.js",
@@ -29,6 +32,7 @@
     "framer-motion": "^12.23.12",
     "immer": "^10.1.1",
     "jotai": "^2.13.1",
+    "jspdf": "^3.0.2",
     "lucide-react": "^0.542.0",
     "motion": "^12.23.12",
     "nanoid": "^5.1.5",
@@ -48,9 +52,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^3.2.4",
     "shadcn": "^3.0.0",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.7",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

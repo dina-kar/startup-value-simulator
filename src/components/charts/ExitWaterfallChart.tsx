@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
-import { useScenarioStore } from '@/stores/scenarioStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart-simple'
 import { ExitSimulator } from '@/components/charts/ExitSimulator'
 

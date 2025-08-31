@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useScenarioStore } from '@/stores/scenarioStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,8 +22,7 @@ export function ScenarioSetupForm() {
     addFounder, 
     updateFounder, 
     removeFounder, 
-    updateESOPConfig,
-    validationErrors 
+    updateESOPConfig
   } = useScenarioStore()
   
   const { showSuccess, showError } = useNotifications()
@@ -46,24 +45,23 @@ export function ScenarioSetupForm() {
       return
     }
 
+    // Store the founder name for success message
+    const founderName = newFounder.name.trim()
+
     try {
+      // Add the founder
       addFounder({
-        name: newFounder.name.trim(),
+        name: founderName,
         email: newFounder.email.trim(),
         initialEquity: newFounder.initialEquity,
         role: newFounder.role?.trim() || undefined
       })
 
-      setNewFounder({
-        name: '',
-        email: '',
-        initialEquity: 0,
-        role: ''
-      })
-
-      showSuccess('Founder Added', `${newFounder.name} has been added to the cap table`)
-    } catch {
-      showError('Error', 'Failed to add founder')
+      // Show success message but don't reset form
+      showSuccess('Founder Added', `${founderName} has been added to the cap table`)
+    } catch (error) {
+      console.error('Error adding founder:', error)
+      showError('Error', error instanceof Error ? error.message : 'Failed to add founder')
     }
   }
 
@@ -82,13 +80,8 @@ export function ScenarioSetupForm() {
     }
   }
 
-  const calculateRemainingEquity = () => {
-    const usedEquity = founders.reduce((sum, founder) => sum + founder.initialEquity, 0) + 
-                      parseFloat(newFounder.initialEquity.toString() || '0')
-    return 100 - esop.poolSize - usedEquity
-  }
-
-  const remainingEquity = calculateRemainingEquity()
+  const totalFounderEquity = founders.reduce((sum, founder) => sum + founder.initialEquity, 0)
+  const remainingEquity = 100 - totalFounderEquity - esop.poolSize
 
   return (
     <div className="space-y-8">
@@ -120,6 +113,19 @@ export function ScenarioSetupForm() {
             <p className="text-sm text-muted-foreground mt-1">
               Typical range: 10-25% for early-stage startups
             </p>
+          </div>
+          <div>
+            <Label className="text-sm font-medium">Pool Timing</Label>
+            <div className="mt-1 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-1">Pre-Money Pool (Create)</h4>
+              <p className="text-xs text-blue-700 mb-2">
+                ESOP shares are created from existing cap table, diluting current shareholders proportionally.
+              </p>
+              <h4 className="font-medium text-blue-900 mb-1">Post-Money Pool (Top-Up)</h4>
+              <p className="text-xs text-blue-700">
+                ESOP pool is topped up after investment, typically diluting founders more than investors.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -186,7 +192,7 @@ export function ScenarioSetupForm() {
         {/* Add New Founder */}
         <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
           <h4 className="font-medium mb-4">Add New Founder</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="new-founder-name">Name *</Label>
               <Input
@@ -246,20 +252,8 @@ export function ScenarioSetupForm() {
         </div>
       </div>
 
-      {/* Validation Errors */}
-      {validationErrors.length > 0 && (
-        <div className="border border-red-200 bg-red-50 rounded-lg p-4">
-          <h4 className="font-medium text-red-800 mb-2">Validation Errors</h4>
-          <ul className="text-sm text-red-700 space-y-1">
-            {validationErrors.map((error) => (
-              <li key={error}>• {error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Summary */}
-      {founders.length > 0 && validationErrors.length === 0 && (
+      {founders.length > 0 && (
         <div className="border border-green-200 bg-green-50 rounded-lg p-4">
           <h4 className="font-medium text-green-800 mb-2">Setup Complete ✓</h4>
           <p className="text-sm text-green-700">

@@ -66,7 +66,7 @@ export default function ScenarioBuilderPage() {
         </div>
 
         {/* Modals */}
-        <ShareModal />
+        {scenario && <ShareModal scenario={scenario} />}
         
         {/* Notifications */}
         <NotificationProvider />

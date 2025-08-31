@@ -26,7 +26,7 @@ interface ScenarioState {
   lastSaved: Date | null
   
   // Actions - Scenario management
-  setScenario: (scenario: Scenario) => void
+  setScenario: (scenario: Scenario, markAsChanged?: boolean) => void
   createNewScenario: (name: string) => void
   clearScenario: () => void
   loadScenarioById: (scenarioId: string) => Promise<boolean>
@@ -85,16 +85,19 @@ export const useScenarioStore = create<ScenarioState>()(
       lastSaved: null,
 
       // Scenario management
-      setScenario: (scenario) => {
+      setScenario: (scenario, markAsChanged = false) => {
         set({
           scenario,
           founders: scenario.founders,
           rounds: scenario.rounds,
           esop: scenario.esop,
           exitValue: scenario.exitValue,
-          hasUnsavedChanges: false,
-          lastSaved: scenario.updatedAt
+          hasUnsavedChanges: markAsChanged,
+          lastSaved: markAsChanged ? null : scenario.updatedAt
         })
+        if (markAsChanged) {
+          get().markAsChanged()
+        }
         get().recalculate()
       },
 
@@ -122,6 +125,17 @@ export const useScenarioStore = create<ScenarioState>()(
           validationErrors: [],
           hasUnsavedChanges: true,
           lastSaved: null
+        })
+        
+        // Automatically save the new scenario to the database
+        get().saveCurrentScenario().then(success => {
+          if (success) {
+            console.log('New scenario saved to database successfully')
+          } else {
+            console.error('Failed to save new scenario to database')
+          }
+        }).catch(error => {
+          console.error('Error saving new scenario:', error)
         })
       },
 
@@ -170,6 +184,7 @@ export const useScenarioStore = create<ScenarioState>()(
           return false
         }
 
+        console.log('Starting to save scenario:', state.scenario.id, 'Name:', state.scenario.name)
         set({ isSaving: true })
 
         try {
@@ -184,12 +199,20 @@ export const useScenarioStore = create<ScenarioState>()(
             updatedAt: new Date()
           }
 
+          console.log('About to call saveScenario with data:', {
+            id: updatedScenario.id,
+            name: updatedScenario.name,
+            foundersCount: updatedScenario.founders.length,
+            roundsCount: updatedScenario.rounds.length
+          })
+
           const result = await saveScenario({ 
             scenario: updatedScenario, 
             isPublic 
           })
 
           if (result.success) {
+            console.log('Scenario saved successfully!')
             set({
               scenario: updatedScenario,
               hasUnsavedChanges: false,
@@ -256,11 +279,19 @@ export const useScenarioStore = create<ScenarioState>()(
           shares: 0 // Will be calculated
         }
         
-        set((state) => ({
-          founders: [...state.founders, founder]
-        }))
-        get().markAsChanged()
-        get().recalculate()
+        try {
+          set((state) => ({
+            founders: [...state.founders, founder]
+          }))
+          get().markAsChanged()
+          get().recalculate()
+        } catch (error) {
+          // If calculation fails, remove the founder that was just added
+          set((state) => ({
+            founders: state.founders.filter(f => f.id !== founder.id)
+          }))
+          throw error
+        }
       },
 
       updateFounder: (id, updates) => {

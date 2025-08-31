@@ -203,7 +203,19 @@ export async function shareScenario(scenarioId: string, options: {
       return handleSupabaseError(error)
     }
 
-    const shareUrl = `${window.location.origin}/share/${shareToken}`
+    // If public share requested, mark underlying scenario row public so RLS allows anonymous read
+    if (options.isPublic) {
+      const { error: updateErr } = await (supabase as any)
+        .from('scenarios')
+        .update({ is_public: true, updated_at: new Date().toISOString() })
+        .eq('id', scenarioId)
+      if (updateErr) {
+        // Non-fatal: still return share link but warn
+        console.warn('Failed to mark scenario public for sharing:', updateErr)
+      }
+    }
+
+  const shareUrl = `${window.location.origin}/share/${shareToken}`
     
     return handleSupabaseSuccess({
       shareUrl,
@@ -216,6 +228,13 @@ export async function shareScenario(scenarioId: string, options: {
 
 export async function loadSharedScenario(shareToken: string): Promise<LoadSharedScenarioResponse> {
   try {
+    if (!shareToken || shareToken.trim() === '') {
+      return {
+        success: false,
+        error: 'Invalid share token provided'
+      }
+    }
+
     // Get the shared scenario metadata
     const { data: sharedData, error: sharedError } = await (supabase as any)
       .from('shared_scenarios')
@@ -224,7 +243,21 @@ export async function loadSharedScenario(shareToken: string): Promise<LoadShared
       .single()
 
     if (sharedError) {
+      // Provide more specific error messages
+      if (sharedError.code === 'PGRST116') {
+        return {
+          success: false,
+          error: 'Share link not found or has been revoked'
+        }
+      }
       return handleSupabaseError(sharedError)
+    }
+
+    if (!sharedData) {
+      return {
+        success: false,
+        error: 'Share link not found'
+      }
     }
 
     // Check if the share link is valid and not expired
@@ -243,7 +276,21 @@ export async function loadSharedScenario(shareToken: string): Promise<LoadShared
       .single()
 
     if (scenarioError) {
+      // Provide more specific error for missing scenarios
+      if (scenarioError.code === 'PGRST116') {
+        return {
+          success: false,
+          error: 'The scenario associated with this share link no longer exists'
+        }
+      }
       return handleSupabaseError(scenarioError)
+    }
+
+    if (!scenarioData || !scenarioData.data) {
+      return {
+        success: false,
+        error: 'Scenario data is corrupted or incomplete'
+      }
     }
 
     return handleSupabaseSuccess(scenarioData.data as Scenario)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useScenarioStore } from '@/stores/scenarioStore'
+import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { useUIStore } from '@/stores/uiStore'
 import { Button } from '@/components/ui/button'
 import {

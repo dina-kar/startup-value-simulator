@@ -1,149 +1,131 @@
-'use client';
+'use client'
 
 import { useState } from 'react'
-import { ShareIcon, ExternalLinkIcon } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CopyButton } from '@/components/ui/copy-button'
-import { useScenarioStore } from '@/stores/scenarioStore'
-import { useUIStore, useNotifications } from '@/stores/uiStore'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { ShareIcon, LinkIcon, ExternalLinkIcon, CheckIcon, CopyIcon } from 'lucide-react'
+import { shareScenario } from '@/lib/database/queries'
+import { useNotifications } from '@/lib/stores/uiStore'
+import type { Scenario } from '@/types/scenario'
 
-export const ShareModal = () => {
-  const { id: scenarioId, name, generateShareToken } = useScenarioStore()
-  const { isShareModalOpen, setShareModalOpen } = useUIStore()
+interface ShareModalProps {
+  scenario: Scenario
+  children?: React.ReactNode
+}
+
+export function ShareModal({ scenario, children }: ShareModalProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+
   const { showSuccess, showError } = useNotifications()
-  
-  const [shareUrl, setShareUrl] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [hasGeneratedLink, setHasGeneratedLink] = useState(false)
 
-  const generateShareLink = async () => {
-    if (!scenarioId) {
-      showError('No scenario to share', 'Please create a scenario first.')
-      return
-    }
-
-    setIsGenerating(true)
-
+  const handleShare = async () => {
+    setIsSharing(true)
     try {
-      // Generate the share token
-      const token = generateShareToken()
-      const url = `${window.location.origin}/share/${token}`
-      
-      // For now, just create the URL without database persistence
-      // TODO: Implement actual database storage for sharing
-      setShareUrl(url)
-      setHasGeneratedLink(true)
-      showSuccess('Share link generated', 'Your scenario is now accessible via the link.')
-    } catch (error) {
-      console.error('Error generating share link:', error)
-      showError('Error', 'An unexpected error occurred while generating the share link.')
+      const result = await shareScenario(scenario.id, { isPublic: true, canView: true, canCopy: true })
+      if (result.success && result.data) {
+        setShareUrl(result.data.shareUrl)
+        showSuccess('Public link ready', 'Anyone with the link can view this scenario.')
+      } else {
+        showError('Share failed', result.error || 'Unknown error')
+      }
+    } catch (e) {
+      console.error('Share error', e)
+      showError('Share error', 'Could not create public link')
     } finally {
-      setIsGenerating(false)
+      setIsSharing(false)
     }
   }
 
-  const handleClose = () => {
-    setShareModalOpen(false)
-    // Reset state when modal closes
-    setTimeout(() => {
-      setShareUrl('')
-      setHasGeneratedLink(false)
-    }, 200)
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      showSuccess('Copied', 'Link copied to clipboard')
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error)
+      showError('Error', 'Failed to copy to clipboard')
+    }
   }
 
-  if (!scenarioId) {
-    return null
-  }
+  const openShareLink = () => { if (shareUrl) window.open(shareUrl, '_blank') }
 
   return (
-    <Dialog open={isShareModalOpen} onOpenChange={setShareModalOpen}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        {children || (
+          <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700">
+            <ShareIcon size={16} />
+          </Button>
+        )}
+      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShareIcon size={20} />
             Share Scenario
           </DialogTitle>
+          <DialogDescription>
+            Create a single public view-only link for "{scenario.name}".
+          </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4">
-          <div>
-            <Label>Scenario Name</Label>
-            <Input 
-              value={name} 
-              readOnly 
-              className="bg-muted"
-            />
-          </div>
 
-          {!hasGeneratedLink ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Generate a public link to share this scenario. Anyone with the link will be able to view your scenario in read-only mode.
-              </p>
-              
-              <Button 
-                onClick={generateShareLink}
-                disabled={isGenerating}
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Generating Link...
-                  </>
-                ) : (
-                  <>
-                    <ShareIcon size={16} className="mr-2" />
-                    Generate Share Link
-                  </>
-                )}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <Label>Share URL</Label>
-                <div className="flex mt-1">
-                  <Input 
-                    value={shareUrl} 
-                    readOnly 
-                    className="bg-muted rounded-r-none"
-                  />
-                  <CopyButton 
-                    value={shareUrl}
-                    className="rounded-l-none border-l-0"
-                  />
+        <div className="space-y-6">
+          {!shareUrl && (
+            <Button 
+              onClick={handleShare} 
+              disabled={isSharing}
+              className="w-full"
+            >
+              {isSharing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Creating link...
+                </>
+              ) : (
+                <>
+                  <LinkIcon size={16} className="mr-2" />
+                  Create Public Link
+                </>
+              )}
+            </Button>
+          )}
+
+          {shareUrl && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-green-600">
+                <CheckIcon size={16} />
+                <span className="text-sm font-medium">Public link ready</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Public URL</Label>
+                <div className="flex gap-2">
+                  <Input value={shareUrl} readOnly className="font-mono text-sm" />
+                  <CopyButton content={shareUrl} onCopy={() => copyToClipboard(shareUrl)} />
                 </div>
               </div>
-
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(shareUrl, '_blank')}
-                  className="w-full"
-                >
+                <Button onClick={openShareLink} variant="outline" className="flex-1">
                   <ExternalLinkIcon size={16} className="mr-2" />
-                  Preview Share Link
+                  Open
                 </Button>
-              </div>
-
-              <div className="bg-muted p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground">
-                  <strong>Note:</strong> This link provides read-only access to your scenario. 
-                  Viewers can see all calculations and charts but cannot make changes.
-                </p>
+                <Button onClick={() => copyToClipboard(shareUrl)} variant="secondary" className="flex-1">
+                  <CopyIcon size={16} className="mr-2" />
+                  Copy
+                </Button>
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={handleClose}>
-            {hasGeneratedLink ? 'Done' : 'Cancel'}
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

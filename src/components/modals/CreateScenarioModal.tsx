@@ -36,7 +36,12 @@ export function CreateScenarioModal({ trigger, className }: CreateScenarioModalP
     setIsCreating(true)
     
     try {
+      console.log('Creating scenario with name:', scenarioName.trim())
       createNewScenario(scenarioName.trim())
+      
+      // Give a small delay to ensure the scenario is created
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       setOpen(false)
       setScenarioName('')
       router.push('/builder')

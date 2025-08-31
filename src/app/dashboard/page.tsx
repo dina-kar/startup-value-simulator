@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlusIcon, ShareIcon, TrashIcon, CopyIcon, EyeIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,12 @@ import {
 } from '@/components/ui/table'
 import { Banner, BannerIcon, BannerTitle } from '@/components/ui/banner'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { CreateScenarioModal } from '@/components/modals/CreateScenarioModal'
+import { useAuth } from '@/lib/auth/AuthContext'
 import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { useNotifications } from '@/lib/stores/uiStore'
 import { loadUserScenarios, deleteScenario } from '@/lib/database/queries'
+import { ShareModal } from '@/components/modals/ShareModal'
 import type { Scenario } from '@/types/scenario'
 
 interface ScenarioWithMetadata extends Scenario {
@@ -31,47 +34,79 @@ interface ScenarioWithMetadata extends Scenario {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { setScenario, createNewScenario } = useScenarioStore()
+  const { setScenario } = useScenarioStore()
   const { showSuccess, showError } = useNotifications()
+  const { user, loading: authLoading } = useAuth()
   
   const [scenarios, setScenarios] = useState<ScenarioWithMetadata[]>([])
-  const [loading, setLoading] = useState(true)
+  // Separate auth loading from data loading to avoid spinner deadlocks
+  const [loading, setLoading] = useState(false)
+  const fetchInFlight = useRef(false)
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Redirect to login if not authenticated
+  const hasRedirected = useRef(false)
   useEffect(() => {
-    loadScenarios()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!authLoading && !user && !hasRedirected.current) {
+      hasRedirected.current = true
+      router.push('/auth/login')
+    }
+  }, [user, authLoading, router])
 
-  const loadScenarios = async () => {
+  const showErrorRef = useRef(showError)
+  useEffect(() => { showErrorRef.current = showError }, [showError])
+  const loadScenarios = useCallback(async () => {
+    if (fetchInFlight.current) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    fetchInFlight.current = true
     setLoading(true)
+    // Failsafe timeout to ensure loading spinner cannot persist forever
+    const timeout = setTimeout(() => {
+      if (fetchInFlight.current) {
+        console.warn('loadScenarios timeout fallback triggered')
+        setLoading(false)
+        fetchInFlight.current = false
+      }
+    }, 15000)
     try {
       const result = await loadUserScenarios()
       if (result.success && result.data) {
-        // Add metadata to scenarios
         const scenariosWithMetadata = result.data.scenarios.map(scenario => ({
           ...scenario,
-          founder_count: scenario.founders?.length || 0,
-          round_count: scenario.rounds?.length || 0,
-          total_valuation: scenario.rounds?.length > 0 
-            ? scenario.rounds[scenario.rounds.length - 1]?.postMoney || 0 
-            : 0
+            founder_count: scenario.founders?.length || 0,
+            round_count: scenario.rounds?.length || 0,
+            total_valuation: scenario.rounds?.length > 0
+              ? scenario.rounds[scenario.rounds.length - 1]?.postMoney || 0
+              : 0
         }))
         setScenarios(scenariosWithMetadata)
       } else {
-        showError('Failed to load scenarios', result.error || 'Unknown error')
+        showErrorRef.current('Failed to load scenarios', result.error || 'Unknown error')
+        setScenarios([])
       }
     } catch (error) {
       console.error('Error loading scenarios:', error)
-      showError('Error', 'Failed to load scenarios')
+      showErrorRef.current('Error', 'Failed to load scenarios')
+      setScenarios([])
     } finally {
+      clearTimeout(timeout)
       setLoading(false)
+      fetchInFlight.current = false
     }
-  }
+  }, [user])
 
-  const handleCreateNew = () => {
-    createNewScenario('New Scenario')
-    router.push('/builder')
-  }
+  useEffect(() => {
+    if (authLoading) return
+    if (user) {
+      loadScenarios()
+    } else {
+      setLoading(false)
+      setScenarios([])
+    }
+  }, [authLoading, user, loadScenarios])
 
   const handleOpenScenario = (scenario: Scenario) => {
     setScenario(scenario)
@@ -99,7 +134,8 @@ export default function DashboardPage() {
       const result = await deleteScenario(scenarioId)
       if (result.success) {
         showSuccess('Scenario deleted', `"${scenarioName}" has been deleted.`)
-        loadScenarios() // Reload the list
+        // Remove the deleted scenario from local state instead of reloading
+        setScenarios(prev => prev.filter(s => s.id !== scenarioId))
       } else {
         showError('Failed to delete scenario', result.error || 'Unknown error')
       }
@@ -127,17 +163,30 @@ export default function DashboardPage() {
     } else if (amount >= 1000000) {
       return `$${(amount / 1000000).toFixed(1)}M`
     } else if (amount >= 1000) {
-      return `$${(amount / 1000).toFixed(1)}K`
-    }
+      return `$${(amount / 1000).toFixed(1)}K`    }
     return `$${amount.toLocaleString()}`
+  }
+
+  // Show auth-specific spinner while auth state is resolving
+  if (authLoading) {
+    return (
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </div>
+      </AppLayout>
+    )
   }
 
   if (loading) {
     return (
       <AppLayout>
         <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex flex-col items-center justify-center h-64 gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <p className="text-sm text-muted-foreground">Loading scenarios...</p>
           </div>
         </div>
       </AppLayout>
@@ -158,10 +207,7 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          <Button onClick={handleCreateNew} className="w-full sm:w-auto">
-            <PlusIcon size={16} className="mr-2" />
-            Create New Scenario
-          </Button>
+          <CreateScenarioModal />
         </div>
 
         {/* Search and Filters */}
@@ -205,21 +251,16 @@ export default function DashboardPage() {
         {/* Scenarios Table */}
         {filteredScenarios.length === 0 ? (
           <div className="text-center py-12">
-            <Banner className="bg-blue-50 text-blue-900 border-blue-200 max-w-md mx-auto">
-              <BannerIcon icon={PlusIcon} />
-              <div>
-                <BannerTitle>No scenarios found</BannerTitle>
-                <p className="text-sm mt-1">
-                  {searchTerm ? 'Try adjusting your search criteria.' : 'Create your first scenario to get started.'}
-                </p>
-              </div>
-            </Banner>
             
             {!searchTerm && (
-              <Button onClick={handleCreateNew} className="mt-4">
-                <PlusIcon size={16} className="mr-2" />
-                Create Your First Scenario
-              </Button>
+              <CreateScenarioModal 
+                trigger={
+                  <Button className="mt-4">
+                    <PlusIcon size={16} className="mr-2" />
+                    Create Your First Scenario
+                  </Button>
+                }
+              />
             )}
           </div>
         ) : (
@@ -298,7 +339,9 @@ export default function DashboardPage() {
                           className="text-blue-600 hover:text-blue-700"
                           title="Share scenario"
                         >
-                          <ShareIcon size={16} />
+                          <ShareModal scenario={scenario}>
+                            <ShareIcon size={16} />
+                          </ShareModal>
                         </Button>
                         <Button
                           size="sm"

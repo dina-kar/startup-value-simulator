@@ -42,12 +42,6 @@ const sidebarItems: SidebarItem[] = [
     href: '/builder'
   },
   {
-    id: 'scenarios',
-    label: 'My Scenarios',
-    icon: FolderIcon,
-    href: '/scenarios'
-  },
-  {
     id: 'compare',
     label: 'Scenario Compare',
     icon: TrendingUpIcon,

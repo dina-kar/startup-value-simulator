@@ -36,6 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
 
+    // Fallback: force loading false after 6s to avoid infinite spinner if SDK stalls
+    const fallbackTimer = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          console.warn('[AuthProvider] Fallback timer clearing loading state')
+        }
+        return false
+      })
+    }, 6000)
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -51,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(fallbackTimer)
+    }
   }, [])
 
   const signUp = async (email: string, password: string, metadata?: { fullName?: string }) => {
