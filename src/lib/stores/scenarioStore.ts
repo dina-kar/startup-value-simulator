@@ -30,7 +30,7 @@ interface ScenarioState {
   createNewScenario: (name: string) => void
   clearScenario: () => void
   loadScenarioById: (scenarioId: string) => Promise<boolean>
-  saveCurrentScenario: (isPublic?: boolean) => Promise<boolean>
+  saveCurrentScenario: (isPublic?: boolean, forceUpsert?: boolean) => Promise<boolean>
   deleteScenarioById: (scenarioId: string) => Promise<boolean>
   
   // Actions - Founders
@@ -126,8 +126,7 @@ export const useScenarioStore = create<ScenarioState>()(
           hasUnsavedChanges: true,
           lastSaved: null
         })
-  // Do NOT auto-save immediately; wait until user adds meaningful data
-  console.log('Initialized new scenario (not yet saved until it has data)')
+        console.log('Initialized new scenario. Will auto-save when it has founders or rounds, or when manually saved.')
       },
 
       clearScenario: () => {
@@ -167,7 +166,7 @@ export const useScenarioStore = create<ScenarioState>()(
       },
 
       // Save current scenario to database
-      saveCurrentScenario: async (isPublic = false): Promise<boolean> => {
+      saveCurrentScenario: async (isPublic = false, forceUpsert = false): Promise<boolean> => {
         const state = get()
         
         if (!state.scenario) {
@@ -175,9 +174,10 @@ export const useScenarioStore = create<ScenarioState>()(
           return false
         }
 
-        // Prevent saving empty scenarios (no founders & no rounds)
-        if (state.founders.length === 0 && state.rounds.length === 0) {
-          console.log('Skipping save: scenario has no founders or rounds yet.')
+        // Only save scenarios with meaningful data unless explicitly forced
+        const hasMeaningfulData = state.founders.length > 0 || state.rounds.length > 0 || forceUpsert
+        if (!hasMeaningfulData) {
+          console.log('Skipping save: scenario has no meaningful data yet. Use manual save to force.')
           return false
         }
 

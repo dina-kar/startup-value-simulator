@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { PlusIcon, ShareIcon, TrashIcon, CopyIcon, EyeIcon, FolderIcon } from 'lucide-react'
+import { PlusIcon, ShareIcon, TrashIcon, CopyIcon, EyeIcon, FolderIcon, PencilIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Banner, BannerIcon, BannerTitle } from '@/components/ui/banner'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { CreateScenarioModal } from '@/components/modals/CreateScenarioModal'
+import { DuplicateScenarioModal } from '@/components/modals/DuplicateScenarioModal'
+import { EditScenarioNameModal } from '@/components/modals/EditScenarioNameModal'
 import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { useNotifications } from '@/lib/stores/uiStore'
 import { loadUserScenarios, deleteScenario } from '@/lib/database/queries'
@@ -24,7 +26,7 @@ interface ScenarioWithMetadata extends Scenario {
 
 export default function ScenariosPage() {
   const router = useRouter()
-  const { setScenario } = useScenarioStore()
+  const { setScenario, saveCurrentScenario } = useScenarioStore()
   const { showSuccess, showError } = useNotifications()
   
   const [scenarios, setScenarios] = useState<ScenarioWithMetadata[]>([])
@@ -56,7 +58,7 @@ export default function ScenariosPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [showError])
 
   useEffect(() => {
     loadScenarios()
@@ -67,16 +69,27 @@ export default function ScenariosPage() {
     router.push('/builder')
   }
 
-  const handleDuplicateScenario = (scenario: Scenario) => {
-    const duplicatedScenario = {
-      ...scenario,
-      id: crypto.randomUUID(),
-      name: `${scenario.name} (Copy)`,
-      createdAt: new Date(),
-      updatedAt: new Date()
+  const handleScenarioNameChange = async (scenario: Scenario, newName: string) => {
+    try {
+      // Update the scenario in the store
+      const updatedScenario = { ...scenario, name: newName, updatedAt: new Date() }
+      setScenario(updatedScenario, true) // Mark as changed
+      
+      // Force save the scenario with new name
+      const success = await saveCurrentScenario(false, true)
+      
+      if (success) {
+        // Update local state
+        setScenarios(prevScenarios => 
+          prevScenarios.map(s => s.id === scenario.id ? { ...s, name: newName } : s)
+        )
+      } else {
+        throw new Error('Failed to save scenario name change')
+      }
+    } catch (error) {
+      console.error('Error updating scenario name:', error)
+      throw error // Re-throw to let the modal handle the error display
     }
-    setScenario(duplicatedScenario)
-    router.push('/builder')
   }
 
   const handleDeleteScenario = async (scenarioId: string, scenarioName: string) => {
@@ -212,18 +225,36 @@ export default function ScenariosPage() {
                   </div>
                   
                   <div className="flex items-center gap-1 ml-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDuplicateScenario(scenario)
-                      }}
-                      title="Duplicate scenario"
-                      className="h-8 w-8 p-0 relative z-20"
-                    >
-                      <CopyIcon size={14} />
-                    </Button>
+                    <EditScenarioNameModal
+                      scenario={scenario}
+                      onNameChange={(newName) => handleScenarioNameChange(scenario, newName)}
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Rename scenario"
+                          className="h-8 w-8 p-0 relative z-20"
+                        >
+                          <PencilIcon size={14} />
+                        </Button>
+                      }
+                    />
+                    <DuplicateScenarioModal
+                      scenario={scenario}
+                      onDuplicate={() => loadScenarios()} // Refresh the list after duplication
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Duplicate scenario"
+                          className="h-8 w-8 p-0 relative z-20"
+                        >
+                          <CopyIcon size={14} />
+                        </Button>
+                      }
+                    />
                     <Button
                       size="sm"
                       variant="ghost"

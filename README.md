@@ -21,7 +21,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
 ---
-## 🔧 Local Setup (Detailed)
+## 🔧 Local Setup
 1. Install PNPM if missing: `npm i -g pnpm`
 2. Create a Supabase project, grab URL + anon key.
 3. Copy env file: `cp .env.example .env.local` and fill values.
@@ -41,7 +41,7 @@ Project scripts of interest:
 | `pnpm setup:profile-db` | Convenience DB bootstrap script |
 
 ---
-## 🏗️ Architecture (Updated)
+## 🏗️ Architecture
 
 Core layers:
 1. UI Layer (Next.js App Router + shadcn/ui) – pages under `src/app/*` orchestrate feature shells.

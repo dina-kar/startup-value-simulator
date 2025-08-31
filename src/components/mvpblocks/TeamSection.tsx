@@ -18,9 +18,9 @@ interface TeamSectionProps {
 export function TeamSection({
   heading = "Focused, product-obsessed team",
   members = [
-    { name: "Dina K.", role: "Founder / Engineer", blurb: "Building transparent financial tools." },
-    { name: "Keshav A M.", role: "Product", blurb: "Simplifying complex cap table math." },
-    { name: "Sanjay K.", role: "Design", blurb: "Crafting clarity-first UI." },
+    { name: "Dina K.", role: "Full Stack Engineer", blurb: "Building transparent financial tools." },
+    { name: "Keshav A M.", role: "Product Manager", blurb: "Simplifying complex cap table math." },
+    { name: "Sanjay K.", role: "UI/UX Designer", blurb: "Crafting clarity-first UI." },
   ],
 }: TeamSectionProps) {
   return (

@@ -10,14 +10,16 @@ interface UseAutoSaveOptions {
 
 export const useAutoSave = ({ 
   enabled = true, 
-  interval = 30000, // 30 seconds
+  interval = 2000, // 2 seconds
   onSave 
 }: UseAutoSaveOptions = {}) => {
   const { 
     hasUnsavedChanges,
     isSaving,
     saveCurrentScenario,
-    scenario 
+    scenario,
+    founders,
+    rounds
   } = useScenarioStore()
   
   const { showError, showSuccess } = useNotifications()
@@ -30,8 +32,10 @@ export const useAutoSave = ({
       return
     }
 
-    // Additional guard: don't attempt auto-save for empty scenarios
-    if (scenario.founders?.length === 0 && scenario.rounds?.length === 0) {
+    // Only auto-save scenarios with meaningful data
+    const hasMeaningfulData = founders.length > 0 || rounds.length > 0
+    if (!hasMeaningfulData) {
+      console.log('Auto-save skipped: scenario has no meaningful data yet')
       return
     }
 
@@ -60,7 +64,22 @@ export const useAutoSave = ({
   showError('Auto-save error', 'An error occurred while saving automatically.', 8000)
       onSave?.(false)
     }
-  }, [scenario, hasUnsavedChanges, isSaving, saveCurrentScenario, showError, onSave])
+  }, [scenario, hasUnsavedChanges, isSaving, saveCurrentScenario, showError, onSave, founders.length, rounds.length])
+
+  // Trigger immediate save when meaningful data is added
+  useEffect(() => {
+    if (founders.length > 0 || rounds.length > 0) {
+      // Delay slightly to allow state to settle
+      const timer = setTimeout(() => {
+        if (hasUnsavedChanges && !isSaving) {
+          console.log('Triggering immediate save due to meaningful data change')
+          performAutoSave().catch(console.error)
+        }
+      }, 1000) // 1 second delay
+
+      return () => clearTimeout(timer)
+    }
+  }, [founders.length, rounds.length, hasUnsavedChanges, isSaving, performAutoSave])
 
   // Set up auto-save interval
   useEffect(() => {
@@ -90,22 +109,23 @@ export const useAutoSave = ({
   // Save when component unmounts if there are unsaved changes
   useEffect(() => {
     return () => {
-      if (hasUnsavedChanges && scenario && !isSaving) {
+      if (hasUnsavedChanges && scenario && !isSaving && (founders.length > 0 || rounds.length > 0)) {
         // Attempt to save on unmount (best effort)
         performAutoSave().catch(console.error)
       }
     }
-  }, [hasUnsavedChanges, scenario, isSaving, performAutoSave])
+  }, [hasUnsavedChanges, scenario, isSaving, performAutoSave, founders.length, rounds.length])
 
   // Manual save function
-  const manualSave = async (): Promise<boolean> => {
+  const manualSave = useCallback(async () => {
     if (!scenario) {
       showError('No scenario to save', 'Please create a scenario first.')
       return false
     }
 
     try {
-      const success = await saveCurrentScenario()
+      // Force save even if scenario is empty when user manually requests it
+      const success = await saveCurrentScenario(false, true)
       
       if (success) {
         showSuccess('Scenario saved', 'Your changes have been saved successfully.')
@@ -122,7 +142,7 @@ export const useAutoSave = ({
       onSave?.(false)
       return false
     }
-  }
+  }, [scenario, saveCurrentScenario, showSuccess, showError, onSave])
 
   return {
     manualSave,

@@ -44,6 +44,11 @@ CREATE INDEX IF NOT EXISTS scenarios_updated_at_idx ON scenarios(updated_at DESC
 CREATE INDEX IF NOT EXISTS shared_scenarios_token_idx ON shared_scenarios(share_token);
 CREATE INDEX IF NOT EXISTS shared_scenarios_scenario_id_idx ON shared_scenarios(scenario_id);
 
+-- Enable Row Level Security on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scenarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shared_scenarios ENABLE ROW LEVEL SECURITY;
+
 -- RLS Policies for user_profiles table
 
 -- Users can view their own profile

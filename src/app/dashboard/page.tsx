@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { PlusIcon, ShareIcon, TrashIcon, CopyIcon, EyeIcon } from 'lucide-react'
+import { PlusIcon, ShareIcon, TrashIcon, CopyIcon, EyeIcon, PencilIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -14,13 +14,14 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table'
-import { Banner, BannerIcon, BannerTitle } from '@/components/ui/banner'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { CreateScenarioModal } from '@/components/modals/CreateScenarioModal'
+import { DuplicateScenarioModal } from '@/components/modals/DuplicateScenarioModal'
+import { EditScenarioNameModal } from '@/components/modals/EditScenarioNameModal'
 import { useAuth } from '@/lib/auth/AuthContext'
 import { useScenarioStore } from '@/lib/stores/scenarioStore'
 import { useNotifications } from '@/lib/stores/uiStore'
-import { loadUserScenarios, deleteScenario } from '@/lib/database/queries'
+import { loadUserScenarios, deleteScenario, saveScenario } from '@/lib/database/queries'
 import { ShareModal } from '@/components/modals/ShareModal'
 import type { Scenario } from '@/types/scenario'
 
@@ -113,18 +114,6 @@ export default function DashboardPage() {
     router.push('/builder')
   }
 
-  const handleDuplicateScenario = (scenario: Scenario) => {
-    const duplicatedScenario = {
-      ...scenario,
-      id: crypto.randomUUID(),
-      name: `${scenario.name} (Copy)`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-    setScenario(duplicatedScenario)
-    router.push('/builder')
-  }
-
   const handleDeleteScenario = async (scenarioId: string, scenarioName: string) => {
     if (!confirm(`Are you sure you want to delete "${scenarioName}"? This action cannot be undone.`)) {
       return
@@ -142,6 +131,37 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error deleting scenario:', error)
       showError('Error', 'Failed to delete scenario')
+    }
+  }
+
+  const handleEditScenarioName = async (scenario: Scenario, newName: string) => {
+    try {
+      // Create updated scenario object
+      const updatedScenario = {
+        ...scenario,
+        name: newName,
+        updatedAt: new Date()
+      }
+
+      // Save to database
+      const result = await saveScenario({ 
+        scenario: updatedScenario, 
+        isPublic: scenario.isPublic || false 
+      })
+
+      if (result.success) {
+        // Update local state
+        setScenarios(prev => 
+          prev.map(s => s.id === scenario.id ? { ...s, name: newName } : s)
+        )
+        showSuccess('Scenario renamed', `Scenario renamed to "${newName}"`)
+      } else {
+        throw new Error(result.error || 'Failed to save scenario')
+      }
+    } catch (error) {
+      console.error('Error updating scenario name:', error)
+      showError('Update failed', 'Failed to update scenario name. Please try again.')
+      throw error // Re-throw to let the modal handle it
     }
   }
 
@@ -323,17 +343,33 @@ export default function DashboardPage() {
                         >
                           <EyeIcon size={16} />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDuplicateScenario(scenario)
-                          }}
-                          title="Duplicate scenario"
-                        >
-                          <CopyIcon size={16} />
-                        </Button>
+                        <DuplicateScenarioModal
+                          scenario={scenario}
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Duplicate scenario"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <CopyIcon size={16} />
+                            </Button>
+                          }
+                        />
+                        <EditScenarioNameModal
+                          scenario={scenario}
+                          onNameChange={(newName) => handleEditScenarioName(scenario, newName)}
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Edit scenario name"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <PencilIcon size={16} />
+                            </Button>
+                          }
+                        />
                         <Button
                           size="sm"
                           variant="ghost"

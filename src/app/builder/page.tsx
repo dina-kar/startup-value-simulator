@@ -18,7 +18,7 @@ export default function ScenarioBuilderPage() {
   const { activeTab } = useUIStore()
 
   // Enable auto-save
-  useAutoSave({ enabled: true, interval: 30000 }) // 30 seconds
+  useAutoSave({ enabled: true, interval: 5000 }) // 5 seconds for testing
 
   // Auto-remove notifications
   useAutoRemoveNotifications()
