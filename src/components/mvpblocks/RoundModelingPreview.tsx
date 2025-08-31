@@ -59,7 +59,7 @@ export function RoundModelingPreview() {
                     <p className="text-xs text-muted-foreground mt-0.5">Amount: {formatCurrency(r.amount)}</p>
                   </div>
                 </div>
-                <button className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground transition-colors rounded-md px-2 py-1 border bg-background/40" disabled>
+                <button type="button" className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground transition-colors rounded-md px-2 py-1 border bg-background/40" disabled>
                   <Edit3 className="h-3.5 w-3.5" /> Edit
                 </button>
               </div>
